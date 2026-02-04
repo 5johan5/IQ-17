@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IQ 17 - Final Edition</title>
+    <title>IQ 17 - Master Edition</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         body { margin: 0; background: #fff; font-family: sans-serif; text-align: center; overflow: hidden; }
@@ -99,7 +99,8 @@ function getValidMoves(startNode) {
                 const targetPiece = gameState.pieces[neighbor];
                 if (piece.type === 'x') {
                     const isBackward = piece.team === 'blue' ? nodes[neighbor].y < nodes[startNode].y : nodes[neighbor].y > nodes[startNode].y;
-                    const isBridge = (startNode == 15 && neighbor == 22) || (startNode == 21 && neighbor == 27);
+                    // Backward capture bridges
+                    const isBridge = (startNode == 15 && neighbor == 22) || (startNode == 22 && neighbor == 15) || (startNode == 21 && neighbor == 27) || (startNode == 27 && neighbor == 21);
                     if (isBackward) {
                         if (!isBridge || !targetPiece || targetPiece.team === piece.team) return;
                     }
@@ -129,7 +130,6 @@ function drawHex(x, y, size) {
 
 function drawBoard() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    // Draw Roads (Vivid Lines)
     ctx.strokeStyle = '#444'; ctx.lineWidth = 2.5;
     roads.forEach(p => { ctx.beginPath(); ctx.moveTo(nodes[p[0]].x, nodes[p[0]].y); ctx.lineTo(nodes[p[1]].x, nodes[p[1]].y); ctx.stroke(); });
     
@@ -140,7 +140,7 @@ function drawBoard() {
         if (possible.includes(numId)) { ctx.beginPath(); ctx.arc(n.x, n.y, 18, 0, 7); ctx.fillStyle = 'rgba(255,215,0,0.5)'; ctx.fill(); }
         
         if (p && p.type === 'king') {
-            drawHex(n.x, n.y, 18); ctx.fillStyle = '#fff'; ctx.fill();
+            drawHex(n.x, n.y, 20); ctx.fillStyle = '#fff'; ctx.fill();
             ctx.strokeStyle = p.team=='blue'?'#2563EB':'#DC2626'; ctx.lineWidth = 3; ctx.stroke();
         } else {
             ctx.beginPath(); ctx.arc(n.x, n.y, 16, 0, 7); ctx.fillStyle = '#fff'; ctx.fill();
@@ -148,9 +148,9 @@ function drawBoard() {
             ctx.lineWidth = 2; ctx.stroke();
         }
         if (p) {
-            ctx.fillStyle = p.team=='blue'?'#2563EB':'#DC2626'; ctx.font = 'bold 16px Arial'; ctx.textAlign='center';
-            let icon = p.type=='king'?'H':p.type=='triangle'?'▲':p.type=='square'?'■':'X';
-            ctx.fillText(icon, n.x, n.y + 6);
+            ctx.fillStyle = p.team=='blue'?'#2563EB':'#DC2626'; ctx.font = 'bold 18px Arial'; ctx.textAlign='center';
+            let icon = p.type=='king'?'👑':p.type=='triangle'?'▲':p.type=='square'?'■':'X';
+            ctx.fillText(icon, n.x, n.y + (p.type=='king' ? 7 : 6));
         }
     }
 }
@@ -169,7 +169,7 @@ function handleInteraction(id) {
     if (target && target.team === gameState.turn) { gameState.selectedNode = id; }
     else if (gameState.selectedNode !== null) {
         if (getValidMoves(gameState.selectedNode).includes(id)) {
-            if (target && target.type === 'king') { alert("CHECKMATE! " + gameState.turn.toUpperCase() + " WINS!"); location.reload(); }
+            if (target && target.type === 'king') { alert("GAME OVER! " + gameState.turn.toUpperCase() + " CAPTURED THE CROWN!"); location.reload(); }
             gameState.pieces[id] = gameState.pieces[gameState.selectedNode]; delete gameState.pieces[gameState.selectedNode];
             gameState.turn = gameState.turn === 'blue' ? 'red' : 'blue'; gameState.selectedNode = null; sendMove();
         } else { gameState.selectedNode = null; }
