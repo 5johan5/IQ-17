@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IQ 17 - Master Edition</title>
+    <title>IQ 17 - Private Relay Edition</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         body { margin: 0; background: #fff; font-family: sans-serif; text-align: center; overflow: hidden; }
@@ -12,12 +12,13 @@
         .btn { padding: 10px 20px; background: #0070FF; color: white; border: none; border-radius: 8px; cursor: pointer; margin: 5px; font-weight: bold; }
         #peer-id-display { font-size: 11px; color: #888; margin-top: 8px; }
         #status { font-size: 18px; font-weight: bold; color: #333; margin-bottom: 5px; }
+        .highlight { background: #ffff00; padding: 2px; } /* Just for your reference */
     </style>
 </head>
 <body>
     <canvas id="gameCanvas"></canvas>
     <div id="ui">
-        <div id="status">Connecting...</div>
+        <div id="status">Ready to Play</div>
         <div>
             <button class="btn" onclick="copyMyID()">Copy ID</button>
             <button class="btn" onclick="connectToPeer()">Join Friend</button>
@@ -34,40 +35,50 @@ const idDisplay = document.getElementById('peer-id-display');
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight - 160;
 
-// --- MULTIPLAYER AGGRESSIVE FIX ---
+// =========================================================
+// --- MODIFIED: PRIVATE RELAY CONFIG ---
+// Paste your Metered.ca info in the strings below
+// =========================================================
 const peerConfig = {
     config: {
         'iceServers': [
             { 'urls': 'stun:stun.l.google.com:19302' },
-            { 'urls': 'stun:stun1.l.google.com:19302' },
-            { 'urls': 'stun:stun2.l.google.com:19302' },
-            { 'urls': 'stun:stun3.l.google.com:19302' }
+            {
+                'urls': 'turn:global.relay.metered.ca:80',
+                'username': '12086455af0334c526b9d3da',  // <--- REPLACE THIS
+                'credential': 'ZxLMG6ZJX9R7oyQE' // <--- REPLACE THIS
+            },
+            {
+                'urls': 'turn:global.relay.metered.ca:443',
+                'username': '12086455af0334c526b9d3da',  // <--- REPLACE THIS
+                'credential': 'ZxLMG6ZJX9R7oyQE' // <--- REPLACE THIS
+            }
         ],
         'iceCandidatePoolSize': 10
     }
 };
 
+// Initialize Peer with the custom relay config
 let peer = new Peer(peerConfig); 
+// =========================================================
+
 let conn = null;
 let myRole = null; 
 
 peer.on('open', (id) => { 
     idDisplay.innerText = "My ID: " + id; 
-    statusDiv.innerText = "Ready to Play"; 
 });
 
-// HOST SIDE (Player B)
 peer.on('connection', (c) => { 
     conn = c; 
     myRole = 'blue'; 
     setupConnection(); 
 });
 
-// JOINER SIDE (Player C)
 function connectToPeer() {
     let peerId = prompt("Enter Friend's ID:");
     if (peerId) { 
-        statusDiv.innerText = "Connecting...";
+        statusDiv.innerText = "Connecting via Relay...";
         conn = peer.connect(peerId, { reliable: true }); 
         myRole = 'red'; 
         setupConnection(); 
@@ -75,32 +86,25 @@ function connectToPeer() {
 }
 
 function setupConnection() {
-    // FORCE "CONNECTED" STATUS ON BOTH SIDES
     conn.on('open', () => {
-        statusDiv.innerText = "CONNECTED!"; 
-        statusDiv.style.color = "#00AD11"; // Green for success
-        
-        // Host immediately pushes the board to the Joiner
+        statusDiv.innerText = "CONNECTED!";
+        statusDiv.style.color = "#00AD11";
         if (myRole === 'blue') {
-            sendMove();
+            sendMove(); 
         } else {
-            // Joiner pings the host to ensure the data path is bi-directional
-            conn.send("HANDSHAKE_PULL");
+            conn.send("SYNC"); 
         }
     });
 
     conn.on('data', (data) => { 
-        if (data === "HANDSHAKE_PULL") {
-            sendMove();
-            return;
-        }
+        if (data === "SYNC") { sendMove(); return; }
         gameState = data; 
         drawBoard(); 
         updateStatus(); 
     });
 
-    conn.on('error', (err) => {
-        statusDiv.innerText = "Connection Error";
+    peer.on('error', (err) => {
+        statusDiv.innerText = "Connection Error: " + err.type;
         console.error(err);
     });
 }
@@ -111,116 +115,19 @@ function copyMyID() {
     navigator.clipboard.writeText(id).then(() => alert("ID Copied!")); 
 }
 
-// --- NODES, ROADS, AND GAMESTATE (STRICTLY AS PROVIDED) ---
+// --- GAME LOGIC (KEPT SAME) ---
 const scaleX = canvas.width / 400;
 const scaleY = canvas.height / 700;
-const nodes = {
-    0: {x: 200*scaleX, y: 50*scaleY}, 1: {x: 80*scaleX, y: 110*scaleY}, 2: {x: 160*scaleX, y: 110*scaleY}, 3: {x: 240*scaleX, y: 110*scaleY}, 4: {x: 320*scaleX, y: 110*scaleY},
-    5: {x: 80*scaleX, y: 180*scaleY}, 6: {x: 160*scaleX, y: 180*scaleY}, 7: {x: 240*scaleX, y: 180*scaleY}, 8: {x: 320*scaleX, y: 180*scaleY},
-    9: {x: 80*scaleX, y: 250*scaleY}, 10: {x: 160*scaleX, y: 250*scaleY}, 11: {x: 240*scaleX, y: 250*scaleY}, 12: {x: 320*scaleX, y: 250*scaleY},
-    13: {x: 50*scaleX, y: 320*scaleY}, 14: {x: 110*scaleX, y: 320*scaleY}, 15: {x: 170*scaleX, y: 320*scaleY}, 16: {x: 230*scaleX, y: 320*scaleY}, 17: {x: 290*scaleX, y: 320*scaleY}, 18: {x: 350*scaleX, y: 320*scaleY},
-    19: {x: 50*scaleX, y: 370*scaleY}, 20: {x: 110*scaleX, y: 370*scaleY}, 21: {x: 170*scaleX, y: 370*scaleY}, 22: {x: 230*scaleX, y: 370*scaleY}, 23: {x: 290*scaleX, y: 370*scaleY}, 24: {x: 350*scaleX, y: 370*scaleY},
-    30: {x: 50*scaleX, y: 420*scaleY}, 29: {x: 110*scaleX, y: 420*scaleY}, 28: {x: 170*scaleX, y: 420*scaleY}, 27: {x: 230*scaleX, y: 420*scaleY}, 26: {x: 290*scaleX, y: 420*scaleY}, 25: {x: 350*scaleX, y: 420*scaleY},
-    31: {x: 80*scaleX, y: 490*scaleY}, 32: {x: 160*scaleX, y: 490*scaleY}, 33: {x: 240*scaleX, y: 490*scaleY}, 34: {x: 320*scaleX, y: 490*scaleY},
-    38: {x: 80*scaleX, y: 560*scaleY}, 37: {x: 160*scaleX, y: 560*scaleY}, 36: {x: 240*scaleX, y: 560*scaleY}, 35: {x: 320*scaleX, y: 560*scaleY},
-    39: {x: 80*scaleX, y: 630*scaleY}, 40: {x: 160*scaleX, y: 630*scaleY}, 41: {x: 240*scaleX, y: 630*scaleY}, 42: {x: 320*scaleX, y: 630*scaleY},
-    43: {x: 200*scaleX, y: 680*scaleY}
-};
+const nodes = {0: {x: 200*scaleX, y: 50*scaleY}, 1: {x: 80*scaleX, y: 110*scaleY}, 2: {x: 160*scaleX, y: 110*scaleY}, 3: {x: 240*scaleX, y: 110*scaleY}, 4: {x: 320*scaleX, y: 110*scaleY}, 5: {x: 80*scaleX, y: 180*scaleY}, 6: {x: 160*scaleX, y: 180*scaleY}, 7: {x: 240*scaleX, y: 180*scaleY}, 8: {x: 320*scaleX, y: 180*scaleY}, 9: {x: 80*scaleX, y: 250*scaleY}, 10: {x: 160*scaleX, y: 250*scaleY}, 11: {x: 240*scaleX, y: 250*scaleY}, 12: {x: 320*scaleX, y: 250*scaleY}, 13: {x: 50*scaleX, y: 320*scaleY}, 14: {x: 110*scaleX, y: 320*scaleY}, 15: {x: 170*scaleX, y: 320*scaleY}, 16: {x: 230*scaleX, y: 320*scaleY}, 17: {x: 290*scaleX, y: 320*scaleY}, 18: {x: 350*scaleX, y: 320*scaleY}, 19: {x: 50*scaleX, y: 370*scaleY}, 20: {x: 110*scaleX, y: 370*scaleY}, 21: {x: 170*scaleX, y: 370*scaleY}, 22: {x: 230*scaleX, y: 370*scaleY}, 23: {x: 290*scaleX, y: 370*scaleY}, 24: {x: 350*scaleX, y: 370*scaleY}, 30: {x: 50*scaleX, y: 420*scaleY}, 29: {x: 110*scaleX, y: 420*scaleY}, 28: {x: 170*scaleX, y: 420*scaleY}, 27: {x: 230*scaleX, y: 420*scaleY}, 26: {x: 290*scaleX, y: 420*scaleY}, 25: {x: 350*scaleX, y: 420*scaleY}, 31: {x: 80*scaleX, y: 490*scaleY}, 32: {x: 160*scaleX, y: 490*scaleY}, 33: {x: 240*scaleX, y: 490*scaleY}, 34: {x: 320*scaleX, y: 490*scaleY}, 38: {x: 80*scaleX, y: 560*scaleY}, 37: {x: 160*scaleX, y: 560*scaleY}, 36: {x: 240*scaleX, y: 560*scaleY}, 35: {x: 320*scaleX, y: 560*scaleY}, 39: {x: 80*scaleX, y: 630*scaleY}, 40: {x: 160*scaleX, y: 630*scaleY}, 41: {x: 240*scaleX, y: 630*scaleY}, 42: {x: 320*scaleX, y: 630*scaleY}, 43: {x: 200*scaleX, y: 680*scaleY}};
 const roads = [[0,2],[0,3],[1,2],[2,3],[3,4],[1,5],[2,6],[3,7],[4,8],[5,6],[6,7],[7,8],[5,9],[6,10],[7,11],[8,12],[9,10],[10,11],[11,12],[2,5],[3,6],[6,9],[4,7],[7,10],[8,11],[9,13],[9,14],[10,14],[10,15],[11,16],[11,17],[12,18],[12,17],[13,14],[14,15],[16,17],[17,18],[13,19],[14,20],[15,21],[16,22],[17,23],[18,24],[19,20],[20,21],[22,23],[23,24],[19,30],[20,29],[21,28],[22,27],[23,26],[24,25],[30,29],[29,28],[27,26],[26,25],[15,22],[21,27],[31,30],[31,29],[32,29],[32,28],[33,27],[33,26],[34,26],[34,25],[31,32],[32,33],[33,34],[31,38],[32,37],[33,36],[34,35],[38,37],[37,36],[36,35],[38,39],[37,40],[36,41],[35,42],[39,40],[40,41],[41,42],[40,43],[41,43],[38,32],[39,37],[37,33],[40,36],[36,34],[41,35],[18,23],[23,27],[16,23],[23,25],[13,20],[20,28],[15,20],[20,30]];
+let gameState = {turn:'blue',selectedNode:null,lastMove:null,pieces:{0:{team:'blue',type:'king'},1:{team:'blue',type:'triangle'},2:{team:'blue',type:'triangle'},3:{team:'blue',type:'triangle'},4:{team:'blue',type:'triangle'},5:{team:'blue',type:'square'},6:{team:'blue',type:'square'},7:{team:'blue',type:'square'},8:{team:'blue',type:'square'},9:{team:'blue',type:'x'},10:{team:'blue',type:'x'},11:{team:'blue',type:'x'},12:{team:'blue',type:'x'},43:{team:'red',type:'king'},39:{team:'red',type:'triangle'},40:{team:'red',type:'triangle'},41:{team:'red',type:'triangle'},42:{team:'red',type:'triangle'},35:{team:'red',type:'square'},36:{team:'red',type:'square'},37:{team:'red',type:'square'},38:{team:'red',type:'square'},31:{team:'red',type:'x'},32:{team:'red',type:'x'},33:{team:'red',type:'x'},34:{team:'red',type:'x'}}};
 
-let gameState = {
-    turn: 'blue', selectedNode: null, lastMove: null,
-    pieces: {
-        0:{team:'blue',type:'king'}, 1:{team:'blue',type:'triangle'}, 2:{team:'blue',type:'triangle'}, 3:{team:'blue',type:'triangle'}, 4:{team:'blue',type:'triangle'}, 5:{team:'blue',type:'square'}, 6:{team:'blue',type:'square'}, 7:{team:'blue',type:'square'}, 8:{team:'blue',type:'square'}, 9:{team:'blue',type:'x'}, 10:{team:'blue',type:'x'}, 11:{team:'blue',type:'x'}, 12:{team:'blue',type:'x'},
-        43:{team:'red',type:'king'}, 39:{team:'red',type:'triangle'}, 40:{team:'red',type:'triangle'}, 41:{team:'red',type:'triangle'}, 42:{team:'red',type:'triangle'}, 35:{team:'red',type:'square'}, 36:{team:'red',type:'square'}, 37:{team:'red',type:'square'}, 38:{team:'red',type:'square'}, 31:{team:'red',type:'x'}, 32:{team:'red',type:'x'}, 33:{team:'red',type:'x'}, 34:{team:'red',type:'x'}
-    }
-};
-
-// --- MOVEMENT LOGIC ---
-function getValidMoves(startNode) {
-    if (startNode === null) return [];
-    const piece = gameState.pieces[startNode];
-    let valid = [];
-    let visited = new Map(); 
-    let queue = [{id: startNode, dist: 0}];
-    visited.set(startNode, 0);
-    const maxDist = (piece.type === 'triangle' || piece.type === 'king') ? 4 : 1;
-    while(queue.length > 0) {
-        let current = queue.shift();
-        if (current.dist >= maxDist) continue;
-        let neighbors = roads.filter(r => r.includes(current.id)).map(r => r[0] === current.id ? r[1] : r[0]);
-        neighbors.forEach(neighbor => {
-            if (!visited.has(neighbor)) {
-                const targetPiece = gameState.pieces[neighbor];
-                if (piece.type === 'x') {
-                    const isBackward = piece.team === 'blue' ? nodes[neighbor].y < nodes[startNode].y : nodes[neighbor].y > nodes[startNode].y;
-                    const isBridge = (startNode == 15 && neighbor == 22) || (startNode == 22 && neighbor == 15) || (startNode == 21 && neighbor == 27) || (startNode == 27 && neighbor == 21);
-                    if (isBackward && (!isBridge || !targetPiece || targetPiece.team === piece.team)) return;
-                    if (targetPiece && targetPiece.type === 'square') return;
-                }
-                if (targetPiece) { if (targetPiece.team !== piece.team) valid.push(neighbor); visited.set(neighbor, current.dist + 1);
-                } else { valid.push(neighbor); visited.set(neighbor, current.dist + 1); queue.push({id: neighbor, dist: current.dist + 1}); }
-            }
-        });
-    }
-    return [...new Set(valid)];
-}
-
-function drawHex(x, y, size) {
-    ctx.beginPath();
-    for (let i = 0; i < 6; i++) { ctx.lineTo(x + size * Math.cos(i * Math.PI / 3), y + size * Math.sin(i * Math.PI / 3)); }
-    ctx.closePath();
-}
-
-function drawBoard() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.strokeStyle = '#444'; ctx.lineWidth = 2.5;
-    roads.forEach(p => { ctx.beginPath(); ctx.moveTo(nodes[p[0]].x, nodes[p[0]].y); ctx.lineTo(nodes[p[1]].x, nodes[p[1]].y); ctx.stroke(); });
-    const possible = getValidMoves(gameState.selectedNode);
-    for (let id in nodes) {
-        const n = nodes[id]; const p = gameState.pieces[id]; const numId = parseInt(id);
-        if (gameState.lastMove && (gameState.lastMove.from === numId || gameState.lastMove.to === numId)) {
-            ctx.beginPath(); ctx.arc(n.x, n.y, 22, 0, 7); ctx.fillStyle = 'rgba(0,0,0,0.1)'; ctx.fill();
-        }
-        if (gameState.selectedNode === numId) { ctx.beginPath(); ctx.arc(n.x, n.y, 22, 0, 7); ctx.fillStyle = 'rgba(0,112,255,0.2)'; ctx.fill(); }
-        if (possible.includes(numId)) { ctx.beginPath(); ctx.arc(n.x, n.y, 18, 0, 7); ctx.fillStyle = 'rgba(255,215,0,0.5)'; ctx.fill(); }
-        if (p && p.type === 'king') { drawHex(n.x, n.y, 20); ctx.fillStyle = '#fff'; ctx.fill(); ctx.strokeStyle = p.team=='blue'?'#2563EB':'#DC2626'; ctx.lineWidth = 3; ctx.stroke();
-        } else { ctx.beginPath(); ctx.arc(n.x, n.y, 16, 0, 7); ctx.fillStyle = '#fff'; ctx.fill(); ctx.strokeStyle = p ? (p.team=='blue'?'#2563EB':'#DC2626') : '#ccc'; ctx.lineWidth = 2; ctx.stroke(); }
-        if (p) { ctx.fillStyle = p.team=='blue'?'#2563EB':'#DC2626'; ctx.font = 'bold 18px Arial'; ctx.textAlign='center';
-            let icon = p.type=='king'?'👑':p.type=='triangle'?'▲':p.type=='square'?'■':'X'; ctx.fillText(icon, n.x, n.y + (p.type=='king' ? 7 : 6));
-        }
-    }
-}
-
-function updateStatus() { 
-    if (statusDiv.innerText === "CONNECTED!") return;
-    statusDiv.innerText = gameState.turn.toUpperCase() + "'s Turn"; 
-    statusDiv.style.color = gameState.turn === 'blue' ? '#2563EB' : '#DC2626'; 
-}
-
-canvas.addEventListener('touchstart', e => {
-    e.preventDefault(); if (myRole && gameState.turn !== myRole) return;
-    const touch = e.touches[0]; const rect = canvas.getBoundingClientRect();
-    const x = touch.clientX - rect.left; const y = touch.clientY - rect.top;
-    for (let id in nodes) { if (Math.sqrt((x-nodes[id].x)**2 + (y-nodes[id].y)**2) < 30) { handleInteraction(parseInt(id)); break; } }
-});
-
-function handleInteraction(id) {
-    const target = gameState.pieces[id];
-    if (target && target.team === gameState.turn) { gameState.selectedNode = id; }
-    else if (gameState.selectedNode !== null) {
-        if (getValidMoves(gameState.selectedNode).includes(id)) {
-            if (target && target.type === 'king') { alert("GAME OVER! " + gameState.turn.toUpperCase() + " WINS!"); location.reload(); }
-            gameState.lastMove = {from: gameState.selectedNode, to: id};
-            gameState.pieces[id] = gameState.pieces[gameState.selectedNode]; 
-            delete gameState.pieces[gameState.selectedNode];
-            gameState.turn = gameState.turn === 'blue' ? 'red' : 'blue'; 
-            gameState.selectedNode = null; 
-            sendMove();
-        } else { gameState.selectedNode = null; }
-    }
-    drawBoard(); updateStatus();
-}
+function getValidMoves(startNode){if(startNode===null)return[];const piece=gameState.pieces[startNode];let valid=[];let visited=new Map();let queue=[{id:startNode,dist:0}];visited.set(startNode,0);const maxDist=(piece.type==='triangle'||piece.type==='king')?4:1;while(queue.length>0){let current=queue.shift();if(current.dist>=maxDist)continue;let neighbors=roads.filter(r=>r.includes(current.id)).map(r=>r[0]===current.id?r[1]:r[0]);neighbors.forEach(neighbor=>{if(!visited.has(neighbor)){const targetPiece=gameState.pieces[neighbor];if(piece.type==='x'){const isBackward=piece.team==='blue'?nodes[neighbor].y<nodes[startNode].y:nodes[neighbor].y>nodes[startNode].y;const isBridge=(startNode==15&&neighbor==22)||(startNode==22&&neighbor==15)||(startNode==21&&neighbor==27)||(startNode==27&&neighbor==21);if(isBackward&&(!isBridge||!targetPiece||targetPiece.team===piece.team))return;if(targetPiece&&targetPiece.type==='square')return}if(targetPiece){if(targetPiece.team!==piece.team)valid.push(neighbor);visited.set(neighbor,current.dist+1)}else{valid.push(neighbor);visited.set(neighbor,current.dist+1);queue.push({id:neighbor,dist:current.dist+1})}}})}return[...new Set(valid)]}
+function drawHex(x,y,size){ctx.beginPath();for(let i=0;i<6;i++){ctx.lineTo(x+size*Math.cos(i*Math.PI/3),y+size*Math.sin(i*Math.PI/3))}ctx.closePath()}
+function drawBoard(){ctx.clearRect(0,0,canvas.width,canvas.height);ctx.strokeStyle='#444';ctx.lineWidth=2.5;roads.forEach(p=>{ctx.beginPath();ctx.moveTo(nodes[p[0]].x,nodes[p[0]].y);ctx.lineTo(nodes[p[1]].x,nodes[p[1]].y);ctx.stroke()});const possible=getValidMoves(gameState.selectedNode);for(let id in nodes){const n=nodes[id];const p=gameState.pieces[id];const numId=parseInt(id);if(gameState.lastMove&&(gameState.lastMove.from===numId||gameState.lastMove.to===numId)){ctx.beginPath();ctx.arc(n.x,n.y,22,0,7);ctx.fillStyle='rgba(0,0,0,0.1)';ctx.fill()}if(gameState.selectedNode===numId){ctx.beginPath();ctx.arc(n.x,n.y,22,0,7);ctx.fillStyle='rgba(0,112,255,0.2)';ctx.fill()}if(possible.includes(numId)){ctx.beginPath();ctx.arc(n.x,n.y,18,0,7);ctx.fillStyle='rgba(255,215,0,0.5)';ctx.fill()}if(p&&p.type==='king'){drawHex(n.x,n.y,20);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle=p.team=='blue'?'#2563EB':'#DC2626';ctx.lineWidth=3;ctx.stroke()}else{ctx.beginPath();ctx.arc(n.x,n.y,16,0,7);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle=p?(p.team=='blue'?'#2563EB':'#DC2626'):'#ccc';ctx.lineWidth=2;ctx.stroke()}if(p){ctx.fillStyle=p.team=='blue'?'#2563EB':'#DC2626';ctx.font='bold 18px Arial';ctx.textAlign='center';let icon=p.type=='king'?'👑':p.type=='triangle'?'▲':p.type=='square'?'■':'X';ctx.fillText(icon,n.x,n.y+(p.type=='king'?7:6))}}}
+function updateStatus(){if(statusDiv.innerText==="CONNECTED!")return;statusDiv.innerText=gameState.turn.toUpperCase()+"'s Turn";statusDiv.style.color=gameState.turn==='blue'?'#2563EB':'#DC2626'}
+canvas.addEventListener('touchstart',e=>{e.preventDefault();if(myRole&&gameState.turn!==myRole)return;const touch=e.touches[0];const rect=canvas.getBoundingClientRect();const x=touch.clientX-rect.left;const y=touch.clientY-rect.top;for(let id in nodes){if(Math.sqrt((x-nodes[id].x)**2+(y-nodes[id].y)**2)<30){handleInteraction(parseInt(id));break}}});
+function handleInteraction(id){const target=gameState.pieces[id];if(target&&target.team===gameState.turn){gameState.selectedNode=id}else if(gameState.selectedNode!==null){if(getValidMoves(gameState.selectedNode).includes(id)){if(target&&target.type==='king'){alert("GAME OVER! "+gameState.turn.toUpperCase()+" WINS!");location.reload()}gameState.lastMove={from:gameState.selectedNode,to:id};gameState.pieces[id]=gameState.pieces[gameState.selectedNode];delete gameState.pieces[gameState.selectedNode];gameState.turn=gameState.turn==='blue'?'red':'blue';gameState.selectedNode=null;sendMove()}else{gameState.selectedNode=null}}drawBoard();updateStatus()}
 drawBoard();
 </script>
 </body>
