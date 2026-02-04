@@ -3,24 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IQ 17 - Master Setup Edition</title>
+    <title>IQ 17 - Global Master</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         body { margin: 0; background: #fff; font-family: sans-serif; text-align: center; overflow: hidden; }
         canvas { border-bottom: 2px solid #ccc; display: block; margin: 0 auto; touch-action: none; background: #ffffff; }
-        #ui { padding: 10px; background: #fff; height: 160px; }
-        .btn { padding: 8px 15px; background: #0070FF; color: white; border: none; border-radius: 8px; cursor: pointer; margin: 3px; font-weight: bold; font-size: 14px; }
+        #ui { padding: 10px; background: #fff; height: 180px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .btn { padding: 10px 18px; background: #0070FF; color: white; border: none; border-radius: 8px; cursor: pointer; margin: 4px; font-weight: bold; font-size: 14px; }
         .btn-restart { background: #DC2626; }
         .btn-start { background: #10B981; }
+        .btn-triangle { background: #6366f1; border: 2px solid #312e81; }
         #peer-id-display { font-size: 11px; color: #888; margin-top: 5px; }
-        #status { font-size: 18px; font-weight: bold; color: #333; margin-bottom: 5px; }
+        #status { font-size: 18px; font-weight: bold; color: #333; margin-bottom: 8px; }
+        .controls { display: flex; flex-wrap: wrap; justify-content: center; }
     </style>
 </head>
 <body>
     <canvas id="gameCanvas"></canvas>
     <div id="ui">
-        <div id="status">Setup: Place your Triangles</div>
-        <div>
+        <div id="status">Connecting...</div>
+        <div class="controls">
+            <button id="triBtn" class="btn btn-triangle" style="display:none;" onclick="pickTriangle()">Pick Triangle ▲</button>
             <button class="btn" onclick="copyMyID()">Copy ID</button>
             <button class="btn" onclick="connectToPeer()">Join Friend</button>
             <button id="actionBtn" class="btn btn-restart" onclick="requestRestart()">Restart</button>
@@ -33,16 +36,26 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const statusDiv = document.getElementById('status');
 const actionBtn = document.getElementById('actionBtn');
+const triBtn = document.getElementById('triBtn');
 const idDisplay = document.getElementById('peer-id-display');
 
 canvas.width = window.innerWidth;
-canvas.height = window.innerHeight - 180;
+canvas.height = window.innerHeight - 200;
 
-let peer = new Peer(); 
+const peerConfig = {
+    config: {
+        'iceServers': [
+            { 'urls': 'stun:stun.l.google.com:19302' },
+            { 'urls': 'stun:stun1.l.google.com:19302' }
+        ]
+    }
+};
+
+let peer = new Peer(peerConfig); 
 let conn = null;
 let myRole = null; 
 
-peer.on('open', (id) => { idDisplay.innerText = "My ID: " + id; });
+peer.on('open', (id) => { idDisplay.innerText = "My ID: " + id; statusDiv.innerText = "Ready. Copy ID to friend."; });
 peer.on('connection', (c) => { conn = c; myRole = 'blue'; setupConnection(); });
 
 function connectToPeer() {
@@ -51,6 +64,7 @@ function connectToPeer() {
 }
 
 function setupConnection() {
+    conn.on('open', () => { statusDiv.innerText = "Connected!"; sendMove(); });
     conn.on('data', (data) => {
         if(data.type === 'restart') { resetState(); }
         else if(data.type === 'start') { gameState.phase = 'play'; }
@@ -62,10 +76,15 @@ function setupConnection() {
 function sendMove() { if (conn && conn.open) conn.send(gameState); }
 function requestRestart() { resetState(); if (conn && conn.open) conn.send({type: 'restart'}); }
 function startGame() { 
-    if (gameState.blueTriPlaced < 2 || gameState.redTriPlaced < 2) { alert("Both players must place 2 triangles first!"); return; }
     gameState.phase = 'play'; 
     if (conn && conn.open) conn.send({type: 'start'});
     drawBoard(); updateStatus();
+}
+
+function pickTriangle() {
+    if (gameState.phase !== 'setup') return;
+    gameState.selectedNode = 'pool';
+    drawBoard();
 }
 
 const scaleX = canvas.width / 400;
@@ -100,11 +119,11 @@ resetState();
 
 function getValidMoves(startNode) {
     if (startNode === null) return [];
-    const piece = gameState.pieces[startNode];
     if (gameState.phase === 'setup') {
-        if (piece.type !== 'triangle') return [];
-        return piece.team === 'blue' ? [1,2,3,4] : [39,40,41,42];
+        if (startNode === 'pool') return myRole === 'blue' ? [1,2,3,4] : [39,40,41,42];
+        return [];
     }
+    const piece = gameState.pieces[startNode];
     let valid = []; let visited = new Map(); let queue = [{id: startNode, dist: 0}]; visited.set(startNode, 0);
     const maxDist = (piece.type === 'triangle' || piece.type === 'king') ? 4 : 1;
     while(queue.length > 0) {
@@ -132,16 +151,6 @@ function drawBoard() {
     ctx.strokeStyle = '#444'; ctx.lineWidth = 2.5;
     roads.forEach(p => { ctx.beginPath(); ctx.moveTo(nodes[p[0]].x, nodes[p[0]].y); ctx.lineTo(nodes[p[1]].x, nodes[p[1]].y); ctx.stroke(); });
     
-    // Draw Setup Pool
-    if (gameState.phase === 'setup') {
-        if (myRole === 'blue' && gameState.blueTriPlaced < 2) {
-            ctx.fillStyle = '#2563EB'; ctx.font = 'bold 20px Arial'; ctx.fillText('▲ ▲', 50, 50);
-        }
-        if (myRole === 'red' && gameState.redTriPlaced < 2) {
-            ctx.fillStyle = '#DC2626'; ctx.font = 'bold 20px Arial'; ctx.fillText('▲ ▲', 350*scaleX, 650*scaleY);
-        }
-    }
-
     const possible = getValidMoves(gameState.selectedNode);
     for (let id in nodes) {
         const n = nodes[id]; const p = gameState.pieces[id]; const numId = parseInt(id);
@@ -168,11 +177,14 @@ function drawBoard() {
 
 function updateStatus() {
     if (gameState.phase === 'setup') {
-        statusDiv.innerText = "Setup: Place Triangles";
+        statusDiv.innerText = "Setup: Place 2 Triangles";
+        const currentPlaced = myRole === 'blue' ? gameState.blueTriPlaced : gameState.redTriPlaced;
+        triBtn.style.display = (currentPlaced < 2 && myRole) ? "block" : "none";
         if (gameState.blueTriPlaced >= 2 && gameState.redTriPlaced >= 2) {
             actionBtn.innerText = "START GAME"; actionBtn.className = "btn btn-start"; actionBtn.onclick = startGame;
         }
     } else {
+        triBtn.style.display = "none";
         statusDiv.innerText = gameState.turn.toUpperCase() + "'s Turn";
         statusDiv.style.color = gameState.turn === 'blue' ? '#2563EB' : '#DC2626';
     }
@@ -181,17 +193,6 @@ function updateStatus() {
 canvas.addEventListener('touchstart', e => {
     e.preventDefault(); const touch = e.touches[0]; const rect = canvas.getBoundingClientRect();
     const x = touch.clientX - rect.left; const y = touch.clientY - rect.top;
-
-    if (gameState.phase === 'setup') {
-        // Special logic for picking up triangle from pool
-        if (myRole === 'blue' && x < 100 && y < 100 && gameState.blueTriPlaced < 2) {
-            gameState.selectedNode = 'pool'; drawBoard(); return;
-        }
-        if (myRole === 'red' && x > 300*scaleX && y > 600*scaleY && gameState.redTriPlaced < 2) {
-            gameState.selectedNode = 'pool'; drawBoard(); return;
-        }
-    }
-
     for (let id in nodes) {
         if (Math.sqrt((x-nodes[id].x)**2 + (y-nodes[id].y)**2) < 30) { handleInteraction(parseInt(id)); break; }
     }
@@ -212,10 +213,10 @@ function handleInteraction(id) {
         if (target && target.team === gameState.turn && myRole === gameState.turn) { gameState.selectedNode = id; }
         else if (gameState.selectedNode !== null) {
             if (getValidMoves(gameState.selectedNode).includes(id)) {
-                if (target && target.type === 'king') { alert(gameState.turn.toUpperCase() + " WINS!"); resetState(); return; }
                 const movingPiece = gameState.pieces[gameState.selectedNode];
+                if (target && target.type === 'king') { alert(gameState.turn.toUpperCase() + " WINS!"); resetState(); return; }
                 if (movingPiece.type === 'king' && ((movingPiece.team === 'blue' && id === 43) || (movingPiece.team === 'red' && id === 0))) {
-                    alert(gameState.turn.toUpperCase() + " WINS BY INFILTRATION!"); resetState(); return;
+                    alert(gameState.turn.toUpperCase() + " WINS!"); resetState(); return;
                 }
                 gameState.lastMove = {from: gameState.selectedNode, to: id};
                 gameState.pieces[id] = movingPiece; delete gameState.pieces[gameState.selectedNode];
