@@ -12,13 +12,7 @@
         .btn { padding: 10px 20px; background: #0070FF; color: white; border: none; border-radius: 8px; cursor: pointer; margin: 5px; font-weight: bold; }
         #peer-id-display { font-size: 11px; color: #888; margin-top: 8px; }
         #status { font-size: 18px; font-weight: bold; color: #333; margin-bottom: 5px; }
-        
-        /* POPUP STYLES */
-        #game-overlay { 
-            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-            background: rgba(0,0,0,0.8); z-index: 100; flex-direction: column; 
-            justify-content: center; align-items: center; color: white;
-        }
+        #game-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 100; flex-direction: column; justify-content: center; align-items: center; color: white; }
         .popup-box { background: white; padding: 30px; border-radius: 15px; color: #333; width: 80%; max-width: 300px; }
         .restart-btn { background: #00AD11; margin-top: 15px; }
         .close-btn { background: #888; }
@@ -55,39 +49,37 @@ const winMsg = document.getElementById('win-message');
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight - 160;
 
-// --- RELAY CONFIG (Update with your keys) ---
+// =========================================================
+// --- CRITICAL FIX: FORCED RELAY CONFIG ---
+// =========================================================
 const peerConfig = {
+    debug: 3, // Shows us exactly what's happening in the console
     config: {
         'iceServers': [
             { 'urls': 'stun:stun.l.google.com:19302' },
             {
-                'urls': 'turn:global.relay.metered.ca:80',
-                'username': 'PASTE_YOUR_USERNAME_HERE',
-                'credential': 'PASTE_YOUR_CREDENTIAL_HERE'
-            },
-            {
-                'urls': 'turn:global.relay.metered.ca:443',
-                'username': 'PASTE_YOUR_USERNAME_HERE',
+                'urls': 'turn:global.relay.metered.ca:443', // Port 443 is harder to block
+                'username': 'PASTE_YOUR_USERNAME_HERE', 
                 'credential': 'PASTE_YOUR_CREDENTIAL_HERE'
             }
         ],
+        'iceTransportPolicy': 'relay', // FORCES the connection through Metered.ca
         'iceCandidatePoolSize': 10
     }
 };
 
 let peer = new Peer(peerConfig); 
+// =========================================================
+
 let conn = null;
 let myRole = null; 
 
-// Initial Game Setup
 const initialGameState = () => ({
     turn: 'blue', selectedNode: null, lastMove: null, gameOver: false,
     pieces: {
-        // BLUE TEAM (Triangles on 3, 4)
         0:{team:'blue',type:'king'}, 3:{team:'blue',type:'triangle'}, 4:{team:'blue',type:'triangle'},
         5:{team:'blue',type:'square'}, 6:{team:'blue',type:'square'}, 7:{team:'blue',type:'square'}, 8:{team:'blue',type:'square'},
         9:{team:'blue',type:'x'}, 10:{team:'blue',type:'x'}, 11:{team:'blue',type:'x'}, 12:{team:'blue',type:'x'},
-        // RED TEAM (Triangles on 39, 40)
         43:{team:'red',type:'king'}, 39:{team:'red',type:'triangle'}, 40:{team:'red',type:'triangle'},
         35:{team:'red',type:'square'}, 36:{team:'red',type:'square'}, 37:{team:'red',type:'square'}, 38:{team:'red',type:'square'},
         31:{team:'red',type:'x'}, 32:{team:'red',type:'x'}, 33:{team:'red',type:'x'}, 34:{team:'red',type:'x'}
@@ -96,14 +88,17 @@ const initialGameState = () => ({
 
 let gameState = initialGameState();
 
-// --- PEER LOGIC ---
 peer.on('open', (id) => { idDisplay.innerText = "My ID: " + id; });
-peer.on('connection', (c) => { conn = c; myRole = 'blue'; setupConnection(); });
+peer.on('connection', (c) => { 
+    conn = c; 
+    myRole = 'blue'; 
+    setupConnection(); 
+});
 
 function connectToPeer() {
     let peerId = prompt("Enter Friend's ID:");
     if (peerId) { 
-        statusDiv.innerText = "Connecting...";
+        statusDiv.innerText = "Tunneling... (Wait 5s)";
         conn = peer.connect(peerId, { reliable: true }); 
         myRole = 'red'; 
         setupConnection(); 
@@ -113,6 +108,7 @@ function connectToPeer() {
 function setupConnection() {
     conn.on('open', () => {
         statusDiv.innerText = "CONNECTED!";
+        statusDiv.style.color = "#00AD11";
         if (myRole === 'blue') sendMove(); else conn.send("SYNC");
     });
     conn.on('data', (data) => { 
@@ -122,39 +118,21 @@ function setupConnection() {
         if (gameState.gameOver) showWinPopup(gameState.winner);
         drawBoard(); updateStatus(); 
     });
+    conn.on('error', (err) => {
+        statusDiv.innerText = "Error: " + err.type;
+        console.error(err);
+    });
 }
 
 function sendMove() { if (conn && conn.open) conn.send(gameState); }
-
-// --- RESTART LOGIC ---
-function requestRestart() {
-    resetLocalGame();
-    if (conn && conn.open) conn.send("RESTART");
-}
-
-function resetLocalGame() {
-    gameState = initialGameState();
-    overlay.style.display = 'none';
-    drawBoard();
-    updateStatus();
-}
-
+function requestRestart() { resetLocalGame(); if (conn && conn.open) conn.send("RESTART"); }
+function resetLocalGame() { gameState = initialGameState(); overlay.style.display = 'none'; drawBoard(); updateStatus(); }
 function closePopup() { overlay.style.display = 'none'; }
+function showWinPopup(winner) { winMsg.innerText = winner.toUpperCase() + " WINS!"; winMsg.style.color = winner === 'blue' ? '#2563EB' : '#DC2626'; overlay.style.display = 'flex'; }
 
-function showWinPopup(winner) {
-    winMsg.innerText = winner.toUpperCase() + " WINS!";
-    winMsg.style.color = winner === 'blue' ? '#2563EB' : '#DC2626';
-    overlay.style.display = 'flex';
-}
-
-// --- WIN CONDITION CHECK ---
 function checkWinConditions(targetId, movedPiece) {
     const targetPiece = gameState.pieces[targetId];
-    
-    // 1. Capture King
     if (targetPiece && targetPiece.type === 'king') return true;
-
-    // 2. King reaches enemy base
     if (movedPiece.type === 'king') {
         if (movedPiece.team === 'blue' && targetId === 43) return true;
         if (movedPiece.team === 'red' && targetId === 0) return true;
@@ -165,19 +143,16 @@ function checkWinConditions(targetId, movedPiece) {
 function handleInteraction(id) {
     if (gameState.gameOver) return;
     const target = gameState.pieces[id];
-    
     if (target && target.team === gameState.turn) {
         gameState.selectedNode = id;
     } else if (gameState.selectedNode !== null) {
         if (getValidMoves(gameState.selectedNode).includes(id)) {
             const movingPiece = gameState.pieces[gameState.selectedNode];
-            
             if (checkWinConditions(id, movingPiece)) {
                 gameState.gameOver = true;
                 gameState.winner = gameState.turn;
                 showWinPopup(gameState.turn);
             }
-
             gameState.lastMove = {from: gameState.selectedNode, to: id};
             gameState.pieces[id] = movingPiece; 
             delete gameState.pieces[gameState.selectedNode];
@@ -192,7 +167,7 @@ function handleInteraction(id) {
     updateStatus();
 }
 
-// --- ALL BOARD NODES/ROADS (Same as original) ---
+// --- BOARD SETUP (Nodes and Roads) ---
 const scaleX = canvas.width / 400;
 const scaleY = canvas.height / 700;
 const nodes = {0: {x: 200*scaleX, y: 50*scaleY}, 1: {x: 80*scaleX, y: 110*scaleY}, 2: {x: 160*scaleX, y: 110*scaleY}, 3: {x: 240*scaleX, y: 110*scaleY}, 4: {x: 320*scaleX, y: 110*scaleY}, 5: {x: 80*scaleX, y: 180*scaleY}, 6: {x: 160*scaleX, y: 180*scaleY}, 7: {x: 240*scaleX, y: 180*scaleY}, 8: {x: 320*scaleX, y: 180*scaleY}, 9: {x: 80*scaleX, y: 250*scaleY}, 10: {x: 160*scaleX, y: 250*scaleY}, 11: {x: 240*scaleX, y: 250*scaleY}, 12: {x: 320*scaleX, y: 250*scaleY}, 13: {x: 50*scaleX, y: 320*scaleY}, 14: {x: 110*scaleX, y: 320*scaleY}, 15: {x: 170*scaleX, y: 320*scaleY}, 16: {x: 230*scaleX, y: 320*scaleY}, 17: {x: 290*scaleX, y: 320*scaleY}, 18: {x: 350*scaleX, y: 320*scaleY}, 19: {x: 50*scaleX, y: 370*scaleY}, 20: {x: 110*scaleX, y: 370*scaleY}, 21: {x: 170*scaleX, y: 370*scaleY}, 22: {x: 230*scaleX, y: 370*scaleY}, 23: {x: 290*scaleX, y: 370*scaleY}, 24: {x: 350*scaleX, y: 370*scaleY}, 30: {x: 50*scaleX, y: 420*scaleY}, 29: {x: 110*scaleX, y: 420*scaleY}, 28: {x: 170*scaleX, y: 420*scaleY}, 27: {x: 230*scaleX, y: 420*scaleY}, 26: {x: 290*scaleX, y: 420*scaleY}, 25: {x: 350*scaleX, y: 420*scaleY}, 31: {x: 80*scaleX, y: 490*scaleY}, 32: {x: 160*scaleX, y: 490*scaleY}, 33: {x: 240*scaleX, y: 490*scaleY}, 34: {x: 320*scaleX, y: 490*scaleY}, 38: {x: 80*scaleX, y: 560*scaleY}, 37: {x: 160*scaleX, y: 560*scaleY}, 36: {x: 240*scaleX, y: 560*scaleY}, 35: {x: 320*scaleX, y: 560*scaleY}, 39: {x: 80*scaleX, y: 630*scaleY}, 40: {x: 160*scaleX, y: 630*scaleY}, 41: {x: 240*scaleX, y: 630*scaleY}, 42: {x: 320*scaleX, y: 630*scaleY}, 43: {x: 200*scaleX, y: 680*scaleY}};
