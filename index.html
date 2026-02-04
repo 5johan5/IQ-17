@@ -64,14 +64,12 @@ const peerConfig = {
 
 let peer = new Peer(peerConfig);
 let conn = null;
-let spectators = []; // Array to manage multiple spectator connections
+let spectators = []; 
 let myRole = null;
 
 peer.on('open', (id) => {
     const startParam = tg.initDataUnsafe.start_param;
-
     if (startParam) {
-        // Check if the link was for spectating
         if (startParam.startsWith('spec_')) {
             const actualId = startParam.replace('spec_', '');
             statusDiv.innerText = "Joining as Spectator...";
@@ -87,11 +85,9 @@ peer.on('open', (id) => {
 
 function inviteTelegramFriend(type) {
     const botLink = "https://t.me/Iq17game_bot/IQ17"; 
-    // If spectator, prefix the ID so the joining app knows
     const param = type === 'spectator' ? `spec_${peer.id}` : peer.id;
     const inviteLink = `${botLink}?startapp=${param}`;
     const shareText = type === 'spectator' ? "Watch me play IQ 17!" : "I challenge you to a game of IQ 17!";
-    
     tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(shareText)}`);
 }
 
@@ -127,7 +123,14 @@ function setupConnection() {
     conn.on('data', (data) => {
         if (data === "SYNC") { broadcastState(); return; }
         if (data === "RESTART") { location.reload(); return; }
+        
         gameState = data;
+
+        // HOST RELAY: Forward Red's move to Spectators
+        if (myRole === 'blue') {
+            spectators.forEach(s => { if (s.open) s.send(gameState); });
+        }
+
         if (gameState.gameOver) showWinPopup(gameState.winner);
         drawBoard();
         updateStatus();
@@ -135,12 +138,12 @@ function setupConnection() {
 }
 
 function broadcastState() {
-    // Send to primary opponent
-    if (conn && conn.open && myRole !== 'spectator') conn.send(gameState);
-    // Send to all spectators
-    spectators.forEach(s => {
-        if (s.open) s.send(gameState);
-    });
+    if (conn && conn.open) conn.send(gameState);
+    
+    // Host sends to all spectators
+    if (myRole === 'blue') {
+        spectators.forEach(s => { if (s.open) s.send(gameState); });
+    }
 }
 
 const initialGameState = () => ({
@@ -175,9 +178,7 @@ function checkWinConditions(targetId, movedPiece) {
 }
 
 function handleInteraction(id) {
-    // BLOCK INTERACTION IF SPECTATOR
     if (gameState.gameOver || myRole === 'spectator' || (myRole && gameState.turn !== myRole)) return;
-    
     const target = gameState.pieces[id];
     if (target && target.team === gameState.turn) {
         gameState.selectedNode = id;
@@ -194,7 +195,7 @@ function handleInteraction(id) {
             delete gameState.pieces[gameState.selectedNode];
             gameState.turn = gameState.turn === 'blue' ? 'red' : 'blue'; 
             gameState.selectedNode = null; 
-            broadcastState(); // Broadcast the update to everyone
+            broadcastState(); 
             updateStatus();
         } else {
             gameState.selectedNode = null;
