@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IQ 17 - Official Game</title>
+    <title>IQ 17 - Final Version</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         body { margin: 0; background: #fff; font-family: sans-serif; text-align: center; overflow: hidden; }
         canvas { border-bottom: 2px solid #eee; display: block; margin: 0 auto; touch-action: none; background: #fafafa; }
-        #ui { padding: 10px; background: #fff; height: 140px; box-shadow: 0 -2px 10px rgba(0,0,0,0.05); }
+        #ui { padding: 10px; background: #fff; height: 140px; }
         .btn { padding: 10px 20px; background: #0070FF; color: white; border: none; border-radius: 8px; cursor: pointer; margin: 5px; font-weight: bold; }
         #peer-id-display { font-size: 11px; color: #888; margin-top: 8px; }
         #status { font-size: 18px; font-weight: bold; color: #333; margin-bottom: 5px; }
@@ -39,49 +39,24 @@ let peer = new Peer();
 let conn = null;
 let myRole = null; 
 
-peer.on('open', (id) => {
-    idDisplay.innerText = "My ID: " + id;
-    statusDiv.innerText = "Host a Game or Join";
-});
-
-peer.on('connection', (c) => {
-    conn = c; myRole = 'blue';
-    setupConnection();
-    statusDiv.innerText = "Friend joined! Blue's Turn";
-});
+peer.on('open', (id) => { idDisplay.innerText = "My ID: " + id; statusDiv.innerText = "Ready to Play"; });
+peer.on('connection', (c) => { conn = c; myRole = 'blue'; setupConnection(); statusDiv.innerText = "Opponent Joined!"; });
 
 function connectToPeer() {
     let peerId = prompt("Enter Friend's ID:");
-    if (peerId) {
-        conn = peer.connect(peerId);
-        myRole = 'red';
-        setupConnection();
-        statusDiv.innerText = "Connected! Waiting for Blue";
-    }
+    if (peerId) { conn = peer.connect(peerId); myRole = 'red'; setupConnection(); }
 }
 
 function setupConnection() {
-    conn.on('data', (data) => {
-        gameState = data;
-        drawBoard();
-        updateStatus();
-    });
+    conn.on('data', (data) => { gameState = data; drawBoard(); updateStatus(); });
 }
 
-function sendMove() {
-    if (conn && conn.open) conn.send(gameState);
-}
+function sendMove() { if (conn && conn.open) conn.send(gameState); }
+function copyMyID() { navigator.clipboard.writeText(idDisplay.innerText.replace("My ID: ", "")); alert("ID Copied!"); }
 
-function copyMyID() {
-    const idText = idDisplay.innerText.replace("My ID: ", "");
-    navigator.clipboard.writeText(idText);
-    alert("ID Copied! Send it to your friend.");
-}
-
-// --- GAME DATA & NODES ---
+// --- GAME DATA ---
 const scaleX = canvas.width / 400;
 const scaleY = canvas.height / 700;
-
 const nodes = {
     0: {x: 200*scaleX, y: 50*scaleY}, 1: {x: 80*scaleX, y: 110*scaleY}, 2: {x: 160*scaleX, y: 110*scaleY}, 3: {x: 240*scaleX, y: 110*scaleY}, 4: {x: 320*scaleX, y: 110*scaleY},
     5: {x: 80*scaleX, y: 180*scaleY}, 6: {x: 160*scaleX, y: 180*scaleY}, 7: {x: 240*scaleX, y: 180*scaleY}, 8: {x: 320*scaleX, y: 180*scaleY},
@@ -94,7 +69,6 @@ const nodes = {
     39: {x: 80*scaleX, y: 630*scaleY}, 40: {x: 160*scaleX, y: 630*scaleY}, 41: {x: 240*scaleX, y: 630*scaleY}, 42: {x: 320*scaleX, y: 630*scaleY},
     43: {x: 200*scaleX, y: 680*scaleY}
 };
-
 const roads = [[0,2],[0,3],[1,2],[2,3],[3,4],[1,5],[2,6],[3,7],[4,8],[5,6],[6,7],[7,8],[5,9],[6,10],[7,11],[8,12],[9,10],[10,11],[11,12],[2,5],[3,6],[6,9],[4,7],[7,10],[8,11],[9,13],[9,14],[10,14],[10,15],[11,16],[11,17],[12,18],[12,17],[13,14],[14,15],[16,17],[17,18],[13,19],[14,20],[15,21],[16,22],[17,23],[18,24],[19,20],[20,21],[22,23],[23,24],[19,30],[20,29],[21,28],[22,27],[23,26],[24,25],[30,29],[29,28],[27,26],[26,25],[15,22],[21,27],[31,30],[31,29],[32,29],[32,28],[33,27],[33,26],[34,26],[34,25],[31,32],[32,33],[33,34],[31,38],[32,37],[33,36],[34,35],[38,37],[37,36],[36,35],[38,39],[37,40],[36,41],[35,42],[39,40],[40,41],[41,42],[40,43],[41,43],[38,32],[39,37],[37,33],[40,36],[36,34],[41,35]];
 
 let gameState = {
@@ -106,120 +80,87 @@ let gameState = {
     }
 };
 
-// --- CORE MOVEMENT RULES ---
-function getValidMoves(nodeId) {
-    if (nodeId === null) return [];
-    const piece = gameState.pieces[nodeId];
+// --- MOVEMENT ENGINE (Any path within 4 steps) ---
+function getValidMoves(startNode) {
+    if (startNode === null) return [];
+    const piece = gameState.pieces[startNode];
     let valid = [];
+    let visited = new Map(); 
+    let queue = [{id: startNode, dist: 0}];
+    visited.set(startNode, 0);
 
-    if (piece.type === 'triangle' || piece.type === 'king') {
-        // Multi-step logic (up to 4)
-        let directions = roads.filter(r => r.includes(nodeId)).map(r => r[0] === nodeId ? r[1] : r[0]);
-        directions.forEach(dirId => {
-            let current = nodeId;
-            let target = dirId;
-            for (let i = 0; i < 4; i++) {
-                if (!target) break;
-                const targetPiece = gameState.pieces[target];
-                if (targetPiece) {
-                    if (targetPiece.team !== piece.team) valid.push(target);
-                    break; 
-                }
-                valid.push(target);
+    const maxDist = (piece.type === 'triangle' || piece.type === 'king') ? 4 : 1;
+
+    while(queue.length > 0) {
+        let current = queue.shift();
+        if (current.dist >= maxDist) continue;
+
+        let neighbors = roads.filter(r => r.includes(current.id)).map(r => r[0] === current.id ? r[1] : r[0]);
+        neighbors.forEach(neighbor => {
+            if (!visited.has(neighbor)) {
+                const targetPiece = gameState.pieces[neighbor];
                 
-                // Keep moving in a straight line
-                let dx = nodes[target].x - nodes[current].x;
-                let dy = nodes[target].y - nodes[current].y;
-                let nextOptions = roads.filter(r => r.includes(target)).map(r => r[0] === target ? r[1] : r[0]);
-                let next = nextOptions.find(n => {
-                    if (n === current) return false;
-                    return Math.abs((nodes[n].x - nodes[target].x) - dx) < 2 && Math.abs((nodes[n].y - nodes[target].y) - dy) < 2;
-                });
-                current = target;
-                target = next;
+                // Rule: X Piece forward only
+                if (piece.type === 'x') {
+                    const isBackward = piece.team === 'blue' ? nodes[neighbor].y < nodes[startNode].y : nodes[neighbor].y > nodes[startNode].y;
+                    const isSpecial = (startNode == 15 && neighbor == 22) || (startNode == 21 && neighbor == 27);
+                    if (isBackward && !(isSpecial && targetPiece)) return;
+                    if (targetPiece && targetPiece.type === 'square') return;
+                }
+
+                if (targetPiece) {
+                    if (targetPiece.team !== piece.team) {
+                        valid.push(neighbor); // Can capture enemy
+                    }
+                    visited.set(neighbor, current.dist + 1); // Cannot pass through any piece
+                } else {
+                    valid.push(neighbor);
+                    visited.set(neighbor, current.dist + 1);
+                    queue.push({id: neighbor, dist: current.dist + 1});
+                }
             }
-        });
-    } else {
-        // 1-step logic (X and Square)
-        let adj = roads.filter(r => r.includes(nodeId)).map(r => r[0] === nodeId ? r[1] : r[0]);
-        adj.forEach(targetId => {
-            const targetPiece = gameState.pieces[targetId];
-            if (targetPiece && targetPiece.team === piece.team) return;
-            if (piece.type === 'x') {
-                const isBackward = piece.team === 'blue' ? nodes[targetId].y < nodes[nodeId].y : nodes[targetId].y > nodes[nodeId].y;
-                const isSpecial = (nodeId == 15 && targetId == 22) || (nodeId == 21 && targetId == 27);
-                if (isBackward && !(isSpecial && targetPiece)) return;
-                if (targetPiece && targetPiece.type === 'square') return;
-            }
-            valid.push(targetId);
         });
     }
-    return valid;
+    return [...new Set(valid)];
 }
 
 function drawBoard() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.strokeStyle = '#eee';
-    roads.forEach(p => {
-        ctx.beginPath(); ctx.moveTo(nodes[p[0]].x, nodes[p[0]].y); ctx.lineTo(nodes[p[1]].x, nodes[p[1]].y); ctx.stroke();
-    });
-
+    roads.forEach(p => { ctx.beginPath(); ctx.moveTo(nodes[p[0]].x, nodes[p[0]].y); ctx.lineTo(nodes[p[1]].x, nodes[p[1]].y); ctx.stroke(); });
     const possible = getValidMoves(gameState.selectedNode);
     for (let id in nodes) {
-        const n = nodes[id]; const p = gameState.pieces[id];
-        const numId = parseInt(id);
-        if (gameState.selectedNode === numId) {
-            ctx.beginPath(); ctx.arc(n.x, n.y, 20, 0, 7); ctx.fillStyle = 'rgba(0,112,255,0.1)'; ctx.fill();
-        }
-        if (possible.includes(numId)) {
-            ctx.beginPath(); ctx.arc(n.x, n.y, 18, 0, 7); ctx.fillStyle = 'rgba(255,235,59,0.4)'; ctx.fill();
-        }
-        ctx.beginPath(); ctx.arc(n.x, n.y, 16, 0, 7); 
-        ctx.fillStyle = '#fff'; ctx.fill();
+        const n = nodes[id]; const p = gameState.pieces[id]; const numId = parseInt(id);
+        if (gameState.selectedNode === numId) { ctx.beginPath(); ctx.arc(n.x, n.y, 20, 0, 7); ctx.fillStyle = 'rgba(0,112,255,0.1)'; ctx.fill(); }
+        if (possible.includes(numId)) { ctx.beginPath(); ctx.arc(n.x, n.y, 18, 0, 7); ctx.fillStyle = 'rgba(255,235,59,0.4)'; ctx.fill(); }
+        ctx.beginPath(); ctx.arc(n.x, n.y, 16, 0, 7); ctx.fillStyle = '#fff'; ctx.fill();
         ctx.strokeStyle = p ? (p.team=='blue'?'#2563EB':'#DC2626') : '#f3f4f6';
         ctx.lineWidth = 2; ctx.stroke();
         if (p) {
-            ctx.fillStyle = p.team=='blue'?'#2563EB':'#DC2626';
-            ctx.font = 'bold 16px Arial'; ctx.textAlign='center';
+            ctx.fillStyle = p.team=='blue'?'#2563EB':'#DC2626'; ctx.font = 'bold 16px Arial'; ctx.textAlign='center';
             let icon = p.type=='king'?'H':p.type=='triangle'?'▲':p.type=='square'?'■':'X';
             ctx.fillText(icon, n.x, n.y + 6);
         }
     }
 }
 
-function updateStatus() {
-    statusDiv.innerText = gameState.turn.toUpperCase() + "'s Turn";
-    statusDiv.style.color = gameState.turn === 'blue' ? '#2563EB' : '#DC2626';
-}
+function updateStatus() { statusDiv.innerText = gameState.turn.toUpperCase() + "'s Turn"; statusDiv.style.color = gameState.turn === 'blue' ? '#2563EB' : '#DC2626'; }
 
 canvas.addEventListener('touchstart', e => {
-    e.preventDefault();
-    if (myRole && gameState.turn !== myRole) return;
-    const touch = e.touches[0];
-    const rect = canvas.getBoundingClientRect();
-    const x = touch.clientX - rect.left;
-    const y = touch.clientY - rect.top;
-    for (let id in nodes) {
-        const d = Math.sqrt((x-nodes[id].x)**2 + (y-nodes[id].y)**2);
-        if (d < 30) { handleInteraction(parseInt(id)); break; }
-    }
+    e.preventDefault(); if (myRole && gameState.turn !== myRole) return;
+    const touch = e.touches[0]; const rect = canvas.getBoundingClientRect();
+    const x = touch.clientX - rect.left; const y = touch.clientY - rect.top;
+    for (let id in nodes) { if (Math.sqrt((x-nodes[id].x)**2 + (y-nodes[id].y)**2) < 30) { handleInteraction(parseInt(id)); break; } }
 });
 
 function handleInteraction(id) {
     const target = gameState.pieces[id];
-    if (target && target.team === gameState.turn) {
-        gameState.selectedNode = id;
-    } else if (gameState.selectedNode !== null) {
+    if (target && target.team === gameState.turn) { gameState.selectedNode = id; }
+    else if (gameState.selectedNode !== null) {
         if (getValidMoves(gameState.selectedNode).includes(id)) {
-            if (target && target.type === 'king') {
-                alert("KING CAPTURED! " + gameState.turn.toUpperCase() + " WINS!");
-                location.reload();
-            }
-            gameState.pieces[id] = gameState.pieces[gameState.selectedNode];
-            delete gameState.pieces[gameState.selectedNode];
-            gameState.turn = gameState.turn === 'blue' ? 'red' : 'blue';
-            gameState.selectedNode = null;
-            sendMove();
+            if (target && target.type === 'king') { alert("VICTORY! " + gameState.turn.toUpperCase() + " WINS!"); location.reload(); }
+            gameState.pieces[id] = gameState.pieces[gameState.selectedNode]; delete gameState.pieces[gameState.selectedNode];
+            gameState.turn = gameState.turn === 'blue' ? 'red' : 'blue'; gameState.selectedNode = null; sendMove();
         } else { gameState.selectedNode = null; }
     }
     drawBoard(); updateStatus();
