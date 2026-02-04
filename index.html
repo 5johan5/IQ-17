@@ -21,7 +21,7 @@
     <div id="game-overlay">
         <div class="popup-box">
             <h2 id="win-message">BLUE WINS!</h2>
-            <button class="btn" style="background:#00AD11" onclick="location.reload()">Restart Game</button>
+            <button class="btn" style="background:#00AD11" onclick="triggerRestart()">Restart Game</button>
             <button class="btn" style="background:#888" onclick="document.getElementById('game-overlay').style.display='none'">Close</button>
         </div>
     </div>
@@ -67,15 +67,40 @@ let conn = null;
 let spectators = []; 
 let myRole = null;
 
+const initialGameState = () => ({
+    turn: 'blue', selectedNode: null, lastMove: null, gameOver: false,
+    pieces: {
+        0:{team:'blue',type:'king'}, 3:{team:'blue',type:'triangle'}, 4:{team:'blue',type:'triangle'},
+        5:{team:'blue',type:'square'}, 6:{team:'blue',type:'square'}, 7:{team:'blue',type:'square'}, 8:{team:'blue',type:'square'},
+        9:{team:'blue',type:'x'}, 10:{team:'blue',type:'x'}, 11:{team:'blue',type:'x'}, 12:{team:'blue',type:'x'},
+        43:{team:'red',type:'king'}, 39:{team:'red',type:'triangle'}, 40:{team:'red',type:'triangle'},
+        35:{team:'red',type:'square'}, 36:{team:'red',type:'square'}, 37:{team:'red',type:'square'}, 38:{team:'red',type:'square'},
+        31:{team:'red',type:'x'}, 32:{team:'red',type:'x'}, 33:{team:'red',type:'x'}, 34:{team:'red',type:'x'}
+    }
+});
+
+let gameState = initialGameState();
+
+// --- RESTART LOGIC (No Reload) ---
+function triggerRestart() {
+    if (myRole === 'spectator') return;
+    gameState = initialGameState();
+    overlay.style.display = 'none';
+    
+    // Tell the other player to reset their state too
+    if (conn && conn.open) conn.send("RESET_GAME");
+    
+    broadcastState();
+    drawBoard();
+    updateStatus();
+}
+
 peer.on('open', (id) => {
     const startParam = tg.initDataUnsafe.start_param;
     if (startParam) {
         if (startParam.startsWith('spec_')) {
-            const actualId = startParam.replace('spec_', '');
-            statusDiv.innerText = "Joining as Spectator...";
-            connectAsSpectator(actualId);
+            connectAsSpectator(startParam.replace('spec_', ''));
         } else {
-            statusDiv.innerText = "Joining Friend...";
             connectToPeer(startParam);
         }
     } else {
@@ -87,8 +112,7 @@ function inviteTelegramFriend(type) {
     const botLink = "https://t.me/Iq17game_bot/IQ17"; 
     const param = type === 'spectator' ? `spec_${peer.id}` : peer.id;
     const inviteLink = `${botLink}?startapp=${param}`;
-    const shareText = type === 'spectator' ? "Watch me play IQ 17!" : "I challenge you to a game of IQ 17!";
-    tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(shareText)}`);
+    tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=Play IQ 17 with me!`);
 }
 
 function connectToPeer(peerId) {
@@ -122,15 +146,20 @@ function setupConnection() {
     });
     conn.on('data', (data) => {
         if (data === "SYNC") { broadcastState(); return; }
-        if (data === "RESTART") { location.reload(); return; }
         
-        gameState = data;
+        // Handle the reset signal from the other player
+        if (data === "RESET_GAME") {
+            gameState = initialGameState();
+            overlay.style.display = 'none';
+            drawBoard();
+            updateStatus();
+            return;
+        }
 
-        // HOST RELAY: Forward Red's move to Spectators
+        gameState = data;
         if (myRole === 'blue') {
             spectators.forEach(s => { if (s.open) s.send(gameState); });
         }
-
         if (gameState.gameOver) showWinPopup(gameState.winner);
         drawBoard();
         updateStatus();
@@ -139,26 +168,10 @@ function setupConnection() {
 
 function broadcastState() {
     if (conn && conn.open) conn.send(gameState);
-    
-    // Host sends to all spectators
     if (myRole === 'blue') {
         spectators.forEach(s => { if (s.open) s.send(gameState); });
     }
 }
-
-const initialGameState = () => ({
-    turn: 'blue', selectedNode: null, lastMove: null, gameOver: false,
-    pieces: {
-        0:{team:'blue',type:'king'}, 3:{team:'blue',type:'triangle'}, 4:{team:'blue',type:'triangle'},
-        5:{team:'blue',type:'square'}, 6:{team:'blue',type:'square'}, 7:{team:'blue',type:'square'}, 8:{team:'blue',type:'square'},
-        9:{team:'blue',type:'x'}, 10:{team:'blue',type:'x'}, 11:{team:'blue',type:'x'}, 12:{team:'blue',type:'x'},
-        43:{team:'red',type:'king'}, 39:{team:'red',type:'triangle'}, 40:{team:'red',type:'triangle'},
-        35:{team:'red',type:'square'}, 36:{team:'red',type:'square'}, 37:{team:'red',type:'square'}, 38:{team:'red',type:'square'},
-        31:{team:'red',type:'x'}, 32:{team:'red',type:'x'}, 33:{team:'red',type:'x'}, 34:{team:'red',type:'x'}
-    }
-});
-
-let gameState = initialGameState();
 
 function updateStatus() {
     if (gameState.gameOver) return;
@@ -170,10 +183,7 @@ function updateStatus() {
 function checkWinConditions(targetId, movedPiece) {
     const targetPiece = gameState.pieces[targetId];
     if (targetPiece && targetPiece.type === 'king') return true;
-    if (movedPiece.type === 'king') {
-        if (movedPiece.team === 'blue' && targetId === 43) return true;
-        if (movedPiece.team === 'red' && targetId === 0) return true;
-    }
+    if (movedPiece.type === 'king' && ((movedPiece.team === 'blue' && targetId === 43) || (movedPiece.team === 'red' && targetId === 0))) return true;
     return false;
 }
 
