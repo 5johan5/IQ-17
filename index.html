@@ -30,8 +30,8 @@
     <div id="ui">
         <div id="status">Connecting...</div>
         <div id="menu">
-            <button class="btn" onclick="inviteTelegramFriend('player')">Invite Friend to Play</button>
-            <button class="btn" style="background:#555" onclick="inviteTelegramFriend('spectator')">Invite Spectators</button>
+            <button id="invite-player-btn" class="btn" onclick="inviteTelegramFriend('player')">Invite Friend to Play</button>
+            <button id="invite-spec-btn" class="btn" style="background:#555" onclick="inviteTelegramFriend('spectator')">Invite Spectators</button>
         </div>
     </div>
 
@@ -44,6 +44,8 @@ const ctx = canvas.getContext('2d');
 const statusDiv = document.getElementById('status');
 const overlay = document.getElementById('game-overlay');
 const winMsg = document.getElementById('win-message');
+const invitePlayerBtn = document.getElementById('invite-player-btn');
+const inviteSpecBtn = document.getElementById('invite-spec-btn');
 
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight - 160;
@@ -81,15 +83,11 @@ const initialGameState = () => ({
 
 let gameState = initialGameState();
 
-// --- RESTART LOGIC (No Reload) ---
 function triggerRestart() {
     if (myRole === 'spectator') return;
     gameState = initialGameState();
     overlay.style.display = 'none';
-    
-    // Tell the other player to reset their state too
     if (conn && conn.open) conn.send("RESET_GAME");
-    
     broadcastState();
     drawBoard();
     updateStatus();
@@ -110,9 +108,11 @@ peer.on('open', (id) => {
 
 function inviteTelegramFriend(type) {
     const botLink = "https://t.me/Iq17game_bot/IQ17"; 
+    // If Blue is the host, use peer.id. If Red wants to invite, they can't be the host for specs in this logic.
     const param = type === 'spectator' ? `spec_${peer.id}` : peer.id;
     const inviteLink = `${botLink}?startapp=${param}`;
-    tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=Play IQ 17 with me!`);
+    const shareText = type === 'spectator' ? "Come watch our IQ 17 match live!" : "I challenge you to a game of IQ 17!";
+    tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(shareText)}`);
 }
 
 function connectToPeer(peerId) {
@@ -141,13 +141,17 @@ peer.on('connection', (c) => {
 function setupConnection() {
     conn.on('open', () => {
         statusDiv.innerText = myRole === 'spectator' ? "SPECTATING" : "CONNECTED!";
-        document.getElementById('menu').style.display = 'none';
+        
+        // HIDE only the player invite button, KEEP the spectator one
+        invitePlayerBtn.style.display = 'none';
+        
+        // Spectators don't need to invite anyone
+        if (myRole === 'spectator') inviteSpecBtn.style.display = 'none';
+
         if (myRole === 'blue') broadcastState(); else conn.send("SYNC");
     });
     conn.on('data', (data) => {
         if (data === "SYNC") { broadcastState(); return; }
-        
-        // Handle the reset signal from the other player
         if (data === "RESET_GAME") {
             gameState = initialGameState();
             overlay.style.display = 'none';
@@ -155,7 +159,6 @@ function setupConnection() {
             updateStatus();
             return;
         }
-
         gameState = data;
         if (myRole === 'blue') {
             spectators.forEach(s => { if (s.open) s.send(gameState); });
