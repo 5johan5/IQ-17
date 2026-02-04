@@ -11,7 +11,7 @@
         #ui { padding: 10px; background: #fff; height: 140px; }
         .btn { padding: 10px 20px; background: #0070FF; color: white; border: none; border-radius: 8px; cursor: pointer; margin: 5px; font-weight: bold; }
         #peer-id-display { font-size: 11px; color: #888; margin-top: 8px; }
-        #status { font-size: 18px; font-weight: bold; color: #333; margin-bottom: 5px; }
+        #status { font-size: 22px; font-weight: bold; color: #333; margin-bottom: 5px; text-transform: uppercase; }
         #game-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 100; flex-direction: column; justify-content: center; align-items: center; color: white; }
         .popup-box { background: white; padding: 30px; border-radius: 15px; color: #333; width: 80%; max-width: 300px; }
         .restart-btn { background: #00AD11; margin-top: 15px; }
@@ -30,7 +30,7 @@
 
     <canvas id="gameCanvas"></canvas>
     <div id="ui">
-        <div id="status">Ready to Play</div>
+        <div id="status">Waiting for Connection...</div>
         <div>
             <button class="btn" onclick="copyMyID()">Copy ID</button>
             <button class="btn" onclick="connectToPeer()">Join Friend</button>
@@ -49,28 +49,24 @@ const winMsg = document.getElementById('win-message');
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight - 160;
 
-// =========================================================
-// --- CRITICAL FIX: FORCED RELAY CONFIG ---
-// =========================================================
+// --- RELAY CONFIG (Keep your Metered Keys here) ---
 const peerConfig = {
-    debug: 3, // Shows us exactly what's happening in the console
+    debug: 3,
     config: {
         'iceServers': [
             { 'urls': 'stun:stun.l.google.com:19302' },
             {
-                'urls': 'turn:global.relay.metered.ca:443', // Port 443 is harder to block
+                'urls': 'turn:global.relay.metered.ca:443',
                 'username': '12086455af0334c526b9d3da', 
                 'credential': 'ZxLMG6ZJX9R7oyQE'
             }
         ],
-        'iceTransportPolicy': 'relay', // FORCES the connection through Metered.ca
+        'iceTransportPolicy': 'relay',
         'iceCandidatePoolSize': 10
     }
 };
 
 let peer = new Peer(peerConfig); 
-// =========================================================
-
 let conn = null;
 let myRole = null; 
 
@@ -88,17 +84,13 @@ const initialGameState = () => ({
 
 let gameState = initialGameState();
 
-peer.on('open', (id) => { idDisplay.innerText = "My ID: " + id; });
-peer.on('connection', (c) => { 
-    conn = c; 
-    myRole = 'blue'; 
-    setupConnection(); 
-});
+peer.on('open', (id) => { idDisplay.innerText = "My ID: " + id; statusDiv.innerText = "Ready to Play"; });
+peer.on('connection', (c) => { conn = c; myRole = 'blue'; setupConnection(); });
 
 function connectToPeer() {
-    let peerId = prompt("Enter Friend's ID:");
+    let peerId = prompt("Enter Friend's ID:").trim();
     if (peerId) { 
-        statusDiv.innerText = "Tunneling... (Wait 5s)";
+        statusDiv.innerText = "Tunneling...";
         conn = peer.connect(peerId, { reliable: true }); 
         myRole = 'red'; 
         setupConnection(); 
@@ -108,7 +100,6 @@ function connectToPeer() {
 function setupConnection() {
     conn.on('open', () => {
         statusDiv.innerText = "CONNECTED!";
-        statusDiv.style.color = "#00AD11";
         if (myRole === 'blue') sendMove(); else conn.send("SYNC");
     });
     conn.on('data', (data) => { 
@@ -116,11 +107,8 @@ function setupConnection() {
         if (data === "RESTART") { resetLocalGame(); return; }
         gameState = data; 
         if (gameState.gameOver) showWinPopup(gameState.winner);
-        drawBoard(); updateStatus(); 
-    });
-    conn.on('error', (err) => {
-        statusDiv.innerText = "Error: " + err.type;
-        console.error(err);
+        drawBoard(); 
+        updateStatus(); 
     });
 }
 
@@ -129,6 +117,14 @@ function requestRestart() { resetLocalGame(); if (conn && conn.open) conn.send("
 function resetLocalGame() { gameState = initialGameState(); overlay.style.display = 'none'; drawBoard(); updateStatus(); }
 function closePopup() { overlay.style.display = 'none'; }
 function showWinPopup(winner) { winMsg.innerText = winner.toUpperCase() + " WINS!"; winMsg.style.color = winner === 'blue' ? '#2563EB' : '#DC2626'; overlay.style.display = 'flex'; }
+
+// --- TURN TEXT UPDATE ---
+function updateStatus() {
+    if (gameState.gameOver) return;
+    const currentTurn = gameState.turn.toUpperCase();
+    statusDiv.innerText = currentTurn + " TEAM'S TURN";
+    statusDiv.style.color = gameState.turn === 'blue' ? '#2563EB' : '#DC2626';
+}
 
 function checkWinConditions(targetId, movedPiece) {
     const targetPiece = gameState.pieces[targetId];
@@ -142,6 +138,7 @@ function checkWinConditions(targetId, movedPiece) {
 
 function handleInteraction(id) {
     if (gameState.gameOver) return;
+    if (myRole && gameState.turn !== myRole) return; // Prevent moving out of turn
     const target = gameState.pieces[id];
     if (target && target.team === gameState.turn) {
         gameState.selectedNode = id;
@@ -159,12 +156,12 @@ function handleInteraction(id) {
             gameState.turn = gameState.turn === 'blue' ? 'red' : 'blue'; 
             gameState.selectedNode = null; 
             sendMove();
+            updateStatus();
         } else {
             gameState.selectedNode = null;
         }
     }
     drawBoard();
-    updateStatus();
 }
 
 // --- BOARD SETUP (Nodes and Roads) ---
@@ -176,11 +173,12 @@ const roads = [[0,2],[0,3],[1,2],[2,3],[3,4],[1,5],[2,6],[3,7],[4,8],[5,6],[6,7]
 function getValidMoves(startNode){if(startNode===null)return[];const piece=gameState.pieces[startNode];let valid=[];let visited=new Map();let queue=[{id:startNode,dist:0}];visited.set(startNode,0);const maxDist=(piece.type==='triangle'||piece.type==='king')?4:1;while(queue.length>0){let current=queue.shift();if(current.dist>=maxDist)continue;let neighbors=roads.filter(r=>r.includes(current.id)).map(r=>r[0]===current.id?r[1]:r[0]);neighbors.forEach(neighbor=>{if(!visited.has(neighbor)){const targetPiece=gameState.pieces[neighbor];if(piece.type==='x'){const isBackward=piece.team==='blue'?nodes[neighbor].y<nodes[startNode].y:nodes[neighbor].y>nodes[startNode].y;const isBridge=(startNode==15&&neighbor==22)||(startNode==22&&neighbor==15)||(startNode==21&&neighbor==27)||(startNode==27&&neighbor==21);if(isBackward&&(!isBridge||!targetPiece||targetPiece.team===piece.team))return;if(targetPiece&&targetPiece.type==='square')return}if(targetPiece){if(targetPiece.team!==piece.team)valid.push(neighbor);visited.set(neighbor,current.dist+1)}else{valid.push(neighbor);visited.set(neighbor,current.dist+1);queue.push({id:neighbor,dist:current.dist+1})}}})}return[...new Set(valid)]}
 function drawHex(x,y,size){ctx.beginPath();for(let i=0;i<6;i++){ctx.lineTo(x+size*Math.cos(i*Math.PI/3),y+size*Math.sin(i*Math.PI/3))}ctx.closePath()}
 function drawBoard(){ctx.clearRect(0,0,canvas.width,canvas.height);ctx.strokeStyle='#444';ctx.lineWidth=2.5;roads.forEach(p=>{ctx.beginPath();ctx.moveTo(nodes[p[0]].x,nodes[p[0]].y);ctx.lineTo(nodes[p[1]].x,nodes[p[1]].y);ctx.stroke()});const possible=getValidMoves(gameState.selectedNode);for(let id in nodes){const n=nodes[id];const p=gameState.pieces[id];const numId=parseInt(id);if(gameState.lastMove&&(gameState.lastMove.from===numId||gameState.lastMove.to===numId)){ctx.beginPath();ctx.arc(n.x,n.y,22,0,7);ctx.fillStyle='rgba(0,0,0,0.1)';ctx.fill()}if(gameState.selectedNode===numId){ctx.beginPath();ctx.arc(n.x,n.y,22,0,7);ctx.fillStyle='rgba(0,112,255,0.2)';ctx.fill()}if(possible.includes(numId)){ctx.beginPath();ctx.arc(n.x,n.y,18,0,7);ctx.fillStyle='rgba(255,215,0,0.5)';ctx.fill()}if(p&&p.type==='king'){drawHex(n.x,n.y,20);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle=p.team=='blue'?'#2563EB':'#DC2626';ctx.lineWidth=3;ctx.stroke()}else{ctx.beginPath();ctx.arc(n.x,n.y,16,0,7);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle=p?(p.team=='blue'?'#2563EB':'#DC2626'):'#ccc';ctx.lineWidth=2;ctx.stroke()}if(p){ctx.fillStyle=p.team=='blue'?'#2563EB':'#DC2626';ctx.font='bold 18px Arial';ctx.textAlign='center';let icon=p.type=='king'?'👑':p.type=='triangle'?'▲':p.type=='square'?'■':'X';ctx.fillText(icon,n.x,n.y+(p.type=='king'?7:6))}}}
-function updateStatus(){if(statusDiv.innerText==="CONNECTED!")return;statusDiv.innerText=gameState.turn.toUpperCase()+"'s Turn";statusDiv.style.color=gameState.turn==='blue'?'#2563EB':'#DC2626'}
-canvas.addEventListener('touchstart',e=>{e.preventDefault();if(myRole&&gameState.turn!==myRole)return;const touch=e.touches[0];const rect=canvas.getBoundingClientRect();const x=touch.clientX-rect.left;const y=touch.clientY-rect.top;for(let id in nodes){if(Math.sqrt((x-nodes[id].x)**2+(y-nodes[id].y)**2)<30){handleInteraction(parseInt(id));break}}});
+canvas.addEventListener('touchstart',e=>{e.preventDefault();const touch=e.touches[0];const rect=canvas.getBoundingClientRect();const x=touch.clientX-rect.left;const y=touch.clientY-rect.top;for(let id in nodes){if(Math.sqrt((x-nodes[id].x)**2+(y-nodes[id].y)**2)<30){handleInteraction(parseInt(id));break}}});
 function copyMyID(){const id=idDisplay.innerText.replace("My ID: ","");navigator.clipboard.writeText(id).then(()=>alert("ID Copied!"));}
 drawBoard();
 </script>
 </body>
 </html>
+</html>
+
 
