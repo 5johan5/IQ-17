@@ -34,14 +34,16 @@ const idDisplay = document.getElementById('peer-id-display');
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight - 160;
 
-// --- MULTIPLAYER FIX ---
+// --- MULTIPLAYER AGGRESSIVE FIX ---
 const peerConfig = {
     config: {
         'iceServers': [
             { 'urls': 'stun:stun.l.google.com:19302' },
             { 'urls': 'stun:stun1.l.google.com:19302' },
-            { 'urls': 'stun:stun2.l.google.com:19302' }
-        ]
+            { 'urls': 'stun:stun2.l.google.com:19302' },
+            { 'urls': 'stun:stun3.l.google.com:19302' }
+        ],
+        'iceCandidatePoolSize': 10
     }
 };
 
@@ -59,14 +61,13 @@ peer.on('connection', (c) => {
     conn = c; 
     myRole = 'blue'; 
     setupConnection(); 
-    statusDiv.innerText = "Player C Joined!"; 
 });
 
 // JOINER SIDE (Player C)
 function connectToPeer() {
     let peerId = prompt("Enter Friend's ID:");
     if (peerId) { 
-        // Using metadata helps the host identify the joiner immediately
+        statusDiv.innerText = "Connecting...";
         conn = peer.connect(peerId, { reliable: true }); 
         myRole = 'red'; 
         setupConnection(); 
@@ -74,21 +75,22 @@ function connectToPeer() {
 }
 
 function setupConnection() {
+    // FORCE "CONNECTED" STATUS ON BOTH SIDES
     conn.on('open', () => {
-        statusDiv.innerText = "CONNECTED!";
-        // HANDSHAKE: Player C tells Player B to send the board
-        if (myRole === 'red') {
-            conn.send("SYNC_REQUEST");
-        }
-        // If Host, send board immediately
+        statusDiv.innerText = "CONNECTED!"; 
+        statusDiv.style.color = "#00AD11"; // Green for success
+        
+        // Host immediately pushes the board to the Joiner
         if (myRole === 'blue') {
             sendMove();
+        } else {
+            // Joiner pings the host to ensure the data path is bi-directional
+            conn.send("HANDSHAKE_PULL");
         }
     });
 
     conn.on('data', (data) => { 
-        // If Host receives sync request, send the board
-        if (data === "SYNC_REQUEST") {
+        if (data === "HANDSHAKE_PULL") {
             sendMove();
             return;
         }
@@ -96,12 +98,18 @@ function setupConnection() {
         drawBoard(); 
         updateStatus(); 
     });
-    
-    conn.on('error', (err) => { statusDiv.innerText = "Error: " + err.type; });
+
+    conn.on('error', (err) => {
+        statusDiv.innerText = "Connection Error";
+        console.error(err);
+    });
 }
 
 function sendMove() { if (conn && conn.open) conn.send(gameState); }
-function copyMyID() { navigator.clipboard.writeText(idDisplay.innerText.replace("My ID: ", "")); alert("ID Copied!"); }
+function copyMyID() { 
+    const id = idDisplay.innerText.replace("My ID: ", "");
+    navigator.clipboard.writeText(id).then(() => alert("ID Copied!")); 
+}
 
 // --- NODES, ROADS, AND GAMESTATE (STRICTLY AS PROVIDED) ---
 const scaleX = canvas.width / 400;
@@ -184,7 +192,11 @@ function drawBoard() {
     }
 }
 
-function updateStatus() { statusDiv.innerText = gameState.turn.toUpperCase() + "'s Turn"; statusDiv.style.color = gameState.turn === 'blue' ? '#2563EB' : '#DC2626'; }
+function updateStatus() { 
+    if (statusDiv.innerText === "CONNECTED!") return;
+    statusDiv.innerText = gameState.turn.toUpperCase() + "'s Turn"; 
+    statusDiv.style.color = gameState.turn === 'blue' ? '#2563EB' : '#DC2626'; 
+}
 
 canvas.addEventListener('touchstart', e => {
     e.preventDefault(); if (myRole && gameState.turn !== myRole) return;
