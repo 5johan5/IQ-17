@@ -34,7 +34,7 @@ const idDisplay = document.getElementById('peer-id-display');
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight - 160;
 
-// --- MULTIPLAYER (GLOBAL SYNC FIX) ---
+// --- MULTIPLAYER (STUN + AUTO-SYNC) ---
 const peerConfig = {
     config: {
         'iceServers': [
@@ -49,29 +49,23 @@ let conn = null;
 let myRole = null; 
 
 peer.on('open', (id) => { idDisplay.innerText = "My ID: " + id; statusDiv.innerText = "Ready to Play"; });
-
 peer.on('connection', (c) => { 
     conn = c; 
     myRole = 'blue'; 
     setupConnection(); 
-    statusDiv.innerText = "Opponent Joined!";
-    // FIX: Send current board to the person who just joined
-    setTimeout(() => { sendMove(); }, 500);
+    statusDiv.innerText = "Opponent Joined!"; 
 });
 
 function connectToPeer() {
     let peerId = prompt("Enter Friend's ID:");
-    if (peerId) { 
-        conn = peer.connect(peerId); 
-        myRole = 'red'; 
-        setupConnection(); 
-    }
+    if (peerId) { conn = peer.connect(peerId); myRole = 'red'; setupConnection(); }
 }
 
 function setupConnection() {
     conn.on('open', () => {
         statusDiv.innerText = "Connected!";
-        if (myRole === 'red') sendMove(); // Sync check
+        // Auto-Sync heartbeat to prevent Player C from getting stuck
+        setInterval(() => { if(myRole === 'blue') sendMove(); }, 2000);
     });
     conn.on('data', (data) => { 
         gameState = data; 
@@ -108,8 +102,8 @@ const roads = [[0,2],[0,3],[1,2],[2,3],[3,4],[1,5],[2,6],[3,7],[4,8],[5,6],[6,7]
 let gameState = {
     turn: 'blue', selectedNode: null, lastMove: null,
     pieces: {
-        0:{team:'blue',type:'king'}, 1:{team:'blue',type:'triangle'}, 2:{team:'blue',type:'triangle'}, 3:{team:'blue',type:'triangle'}, 4:{team:'blue',type:'triangle'}, 5:{team:'blue',type:'square'}, 6:{team:'blue',type:'square'}, 7:{team:'blue',type:'square'}, 8:{team:'blue',type:'square'}, 9:{team:'blue',type:'x'}, 10:{team:'blue',type:'x'}, 11:{team:'blue',type:'x'}, 12:{team:'blue',type:'x'},
-        43:{team:'red',type:'king'}, 39:{team:'red',type:'triangle'}, 40:{team:'red',type:'triangle'}, 41:{team:'red',type:'triangle'}, 42:{team:'red',type:'triangle'}, 35:{team:'red',type:'square'}, 36:{team:'red',type:'square'}, 37:{team:'red',type:'square'}, 38:{team:'red',type:'square'}, 31:{team:'red',type:'x'}, 32:{team:'red',type:'x'}, 33:{team:'red',type:'x'}, 34:{team:'red',type:'x'}
+        0:{team:'blue',type:'king'}, 1:{team:'blue',type:'triangle'}, 4:{team:'blue',type:'triangle'}, 5:{team:'blue',type:'square'}, 6:{team:'blue',type:'square'}, 7:{team:'blue',type:'square'}, 8:{team:'blue',type:'square'}, 9:{team:'blue',type:'x'}, 10:{team:'blue',type:'x'}, 11:{team:'blue',type:'x'}, 12:{team:'blue',type:'x'},
+        43:{team:'red',type:'king'}, 39:{team:'red',type:'triangle'}, 42:{team:'red',type:'triangle'}, 35:{team:'red',type:'square'}, 36:{team:'red',type:'square'}, 37:{team:'red',type:'square'}, 38:{team:'red',type:'square'}, 31:{team:'red',type:'x'}, 32:{team:'red',type:'x'}, 33:{team:'red',type:'x'}, 34:{team:'red',type:'x'}
     }
 };
 
