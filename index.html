@@ -34,7 +34,7 @@ const idDisplay = document.getElementById('peer-id-display');
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight - 160;
 
-// --- MULTIPLAYER (STUN SERVER FIX ADDED) ---
+// --- MULTIPLAYER (GLOBAL SYNC FIX) ---
 const peerConfig = {
     config: {
         'iceServers': [
@@ -49,20 +49,35 @@ let conn = null;
 let myRole = null; 
 
 peer.on('open', (id) => { idDisplay.innerText = "My ID: " + id; statusDiv.innerText = "Ready to Play"; });
+
 peer.on('connection', (c) => { 
     conn = c; 
     myRole = 'blue'; 
     setupConnection(); 
-    statusDiv.innerText = "Opponent Joined!"; 
+    statusDiv.innerText = "Opponent Joined!";
+    // FIX: Send current board to the person who just joined
+    setTimeout(() => { sendMove(); }, 500);
 });
 
 function connectToPeer() {
     let peerId = prompt("Enter Friend's ID:");
-    if (peerId) { conn = peer.connect(peerId); myRole = 'red'; setupConnection(); }
+    if (peerId) { 
+        conn = peer.connect(peerId); 
+        myRole = 'red'; 
+        setupConnection(); 
+    }
 }
 
 function setupConnection() {
-    conn.on('data', (data) => { gameState = data; drawBoard(); updateStatus(); });
+    conn.on('open', () => {
+        statusDiv.innerText = "Connected!";
+        if (myRole === 'red') sendMove(); // Sync check
+    });
+    conn.on('data', (data) => { 
+        gameState = data; 
+        drawBoard(); 
+        updateStatus(); 
+    });
 }
 
 function sendMove() { if (conn && conn.open) conn.send(gameState); }
@@ -175,10 +190,14 @@ function drawBoard() {
     }
 }
 
-function updateStatus() { statusDiv.innerText = gameState.turn.toUpperCase() + "'s Turn"; statusDiv.style.color = gameState.turn === 'blue' ? '#2563EB' : '#DC2626'; }
+function updateStatus() { 
+    statusDiv.innerText = gameState.turn.toUpperCase() + "'s Turn"; 
+    statusDiv.style.color = gameState.turn === 'blue' ? '#2563EB' : '#DC2626'; 
+}
 
 canvas.addEventListener('touchstart', e => {
-    e.preventDefault(); if (myRole && gameState.turn !== myRole) return;
+    e.preventDefault(); 
+    if (myRole && gameState.turn !== myRole) return;
     const touch = e.touches[0]; const rect = canvas.getBoundingClientRect();
     const x = touch.clientX - rect.left; const y = touch.clientY - rect.top;
     for (let id in nodes) { if (Math.sqrt((x-nodes[id].x)**2 + (y-nodes[id].y)**2) < 30) { handleInteraction(parseInt(id)); break; } }
