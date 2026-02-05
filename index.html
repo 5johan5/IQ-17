@@ -239,15 +239,31 @@ function getValidMoves(startNode) {
     const piece = gameState.pieces[startNode];
     let valid = [];
     let visited = new Map();
-    const maxDist = (piece.type === 'triangle' || piece.type === 'king') ? 3 : 1;
+    const isSpecialPiece = (piece.type === 'triangle' || piece.type === 'king');
+    const maxDist = isSpecialPiece ? 3 : 1;
     let queue = [{id: startNode, dist: 0, lastNode: null}];
     visited.set(startNode, 0);
+
+    const shortcuts = {
+        40:[25], 25:[40], 39:[26], 26:[39], 43:[35], 35:[43],
+        4:[14], 14:[4], 3:[13], 13:[3], 0:[5], 5:[0]
+    };
+
     while (queue.length > 0) {
         let current = queue.shift();
         if (current.dist >= maxDist) continue;
+
         let neighbors = roads.filter(r => r.includes(current.id)).map(r => r[0] === current.id ? r[1] : r[0]);
+        
+        // Add shortcuts for King/Triangle
+        if (isSpecialPiece && shortcuts[current.id]) {
+            neighbors = [...neighbors, ...shortcuts[current.id]];
+        }
+
         neighbors.forEach(neighbor => {
-            if (current.lastNode !== null) {
+            const isJump = isSpecialPiece && shortcuts[current.id] && shortcuts[current.id].includes(neighbor);
+            
+            if (current.lastNode !== null && !isJump) {
                 const dx1 = nodes[current.id].x - nodes[current.lastNode].x;
                 const dy1 = nodes[current.id].y - nodes[current.lastNode].y;
                 const dx2 = nodes[neighbor].x - nodes[current.id].x;
@@ -255,6 +271,7 @@ function getValidMoves(startNode) {
                 const isStraight = Math.abs(Math.atan2(dy1, dx1) - Math.atan2(dy2, dx2)) < 0.1;
                 if (!isStraight) return;
             }
+
             if (!visited.has(neighbor)) {
                 const targetPiece = gameState.pieces[neighbor];
                 if (piece.type === 'x') {
