@@ -234,73 +234,7 @@ const nodes = {
 
 const roads = [[0,2],[0,3],[1,2],[2,3],[3,4],[1,5],[2,6],[3,7],[4,8],[5,6],[6,7],[7,8],[5,9],[6,10],[7,11],[8,12],[9,10],[10,11],[11,12],[2,5],[3,6],[6,9],[4,7],[7,10],[8,11],[9,13],[9,14],[10,14],[10,15],[11,16],[11,17],[12,18],[12,17],[13,14],[14,15],[16,17],[17,18],[13,19],[14,20],[15,21],[16,22],[17,23],[18,24],[19,20],[20,21],[22,23],[23,24],[19,30],[20,29],[21,28],[22,27],[23,26],[24,25],[30,29],[29,28],[27,26],[26,25],[15,22],[21,27],[31,30],[31,29],[32,29],[32,28],[33,27],[33,26],[34,26],[34,25],[31,32],[32,33],[33,34],[31,38],[32,37],[33,36],[34,35],[38,37],[37,36],[36,35],[38,39],[37,40],[36,41],[35,42],[39,40],[40,41],[41,42],[40,43],[41,43],[38,32],[39,37],[37,33],[40,36],[36,34],[41,35],[18,23],[23,27],[16,23],[23,25],[13,20],[20,28],[15,20],[20,30]];
 
-function getValidMoves(startNode) {
-    if (startNode === null) return [];
-    const piece = gameState.pieces[startNode];
-    let valid = [];
-
-    const getNeighbors = (id) => roads.filter(r => r.includes(id)).map(r => r[0] === id ? r[1] : r[0]);
-
-    if (piece.type === 'triangle' || piece.type === 'king') {
-        // BFS to find straight paths up to 3 steps
-        let queue = [];
-        // Start by looking at direct neighbors
-        getNeighbors(startNode).forEach(neighbor => {
-            queue.push({
-                current: neighbor,
-                prev: startNode,
-                dist: 1,
-                dx: nodes[neighbor].x - nodes[startNode].x,
-                dy: nodes[neighbor].y - nodes[startNode].y
-            });
-        });
-
-        while (queue.length > 0) {
-            let path = queue.shift();
-            const target = gameState.pieces[path.current];
-
-            // If move is valid (empty or enemy), add to valid list
-            if (!target || target.team !== piece.team) valid.push(path.current);
-            
-            // Can only continue path if node was empty and distance < 3
-            if (!target && path.dist < 3) {
-                getNeighbors(path.current).forEach(next => {
-                    if (next === path.prev) return; // Don't go back
-
-                    const nextDx = nodes[next].x - nodes[path.current].x;
-                    const nextDy = nodes[next].y - nodes[path.current].y;
-
-                    // Check if direction is roughly the same (Straight line check)
-                    const angle1 = Math.atan2(path.dy, path.dx);
-                    const angle2 = Math.atan2(nextDy, nextDx);
-                    
-                    if (Math.abs(angle1 - angle2) < 0.2) { // 0.2 rad tolerance for hand-placed nodes
-                        queue.push({
-                            current: next,
-                            prev: path.current,
-                            dist: path.dist + 1,
-                            dx: nextDx,
-                            dy: nextDy
-                        });
-                    }
-                });
-            }
-        }
-    } else {
-        // Standard 1-step logic
-        getNeighbors(startNode).forEach(neighbor => {
-            const targetPiece = gameState.pieces[neighbor];
-            if (piece.type === 'x') {
-                const isBackward = piece.team === 'blue' ? nodes[neighbor].y < nodes[startNode].y : nodes[neighbor].y > nodes[startNode].y;
-                if (isBackward) return;
-                if (targetPiece && targetPiece.type === 'square') return;
-            }
-            if (!targetPiece || targetPiece.team !== piece.team) valid.push(neighbor);
-        });
-    }
-    return [...new Set(valid)];
-}
-
+function getValidMoves(startNode){if(startNode===null)return[];const piece=gameState.pieces[startNode];let valid=[];let visited=new Map();let queue=[{id:startNode,dist:0}];visited.set(startNode,0);const maxDist=(piece.type==='triangle'||piece.type==='king')?4:1;while(queue.length>0){let current=queue.shift();if(current.dist>=maxDist)continue;let neighbors=roads.filter(r=>r.includes(current.id)).map(r=>r[0]===current.id?r[1]:r[0]);neighbors.forEach(neighbor=>{if(!visited.has(neighbor)){const targetPiece=gameState.pieces[neighbor];if(piece.type==='x'){const isBackward=piece.team==='blue'?nodes[neighbor].y<nodes[startNode].y:nodes[neighbor].y>nodes[startNode].y;const isBridge=(startNode==15&&neighbor==22)||(startNode==22&&neighbor==15)||(startNode==21&&neighbor==27)||(startNode==27&&neighbor==21);if(isBackward&&(!isBridge||!targetPiece||targetPiece.team===piece.team))return;if(targetPiece&&targetPiece.type==='square')return}if(targetPiece){if(targetPiece.team!==piece.team)valid.push(neighbor);visited.set(neighbor,current.dist+1)}else{valid.push(neighbor);visited.set(neighbor,current.dist+1);queue.push({id:neighbor,dist:current.dist+1})}}})}return[...new Set(valid)]}
 function drawHex(x,y,size){ctx.beginPath();for(let i=0;i<6;i++){ctx.lineTo(x+size*Math.cos(i*Math.PI/3),y+size*Math.sin(i*Math.PI/3))}ctx.closePath()}
 function drawBoard(){ctx.clearRect(0,0,canvas.width,canvas.height);ctx.strokeStyle='#444';ctx.lineWidth=2.5;roads.forEach(p=>{ctx.beginPath();ctx.moveTo(nodes[p[0]].x,nodes[p[0]].y);ctx.lineTo(nodes[p[1]].x,nodes[p[1]].y);ctx.stroke()});const possible=getValidMoves(gameState.selectedNode);for(let id in nodes){const n=nodes[id];const p=gameState.pieces[id];const numId=parseInt(id);if(gameState.lastMove&&(gameState.lastMove.from===numId||gameState.lastMove.to===numId)){ctx.beginPath();ctx.arc(n.x,n.y,22,0,7);ctx.fillStyle='rgba(0,0,0,0.1)';ctx.fill()}if(gameState.selectedNode===numId){ctx.beginPath();ctx.arc(n.x,n.y,22,0,7);ctx.fillStyle='rgba(0,112,255,0.2)';ctx.fill()}if(possible.includes(numId)){ctx.beginPath();ctx.arc(n.x,n.y,18,0,7);ctx.fillStyle='rgba(255,215,0,0.5)';ctx.fill()}if(p&&p.type==='king'){drawHex(n.x,n.y,20);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle=p.team=='blue'?'#2563EB':'#DC2626';ctx.lineWidth=3;ctx.stroke()}else{ctx.beginPath();ctx.arc(n.x,n.y,16,0,7);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle=p?(p.team=='blue'?'#2563EB':'#DC2626'):'#ccc';ctx.lineWidth=2;ctx.stroke()}if(p){ctx.fillStyle=p.team=='blue'?'#2563EB':'#DC2626';ctx.font='bold 18px Arial';ctx.textAlign='center';let icon=p.type=='king'?'👑':p.type=='triangle'?'▲':p.type=='square'?'■':'X';ctx.fillText(icon,n.x,n.y+(p.type=='king'?7:6))}}}
 canvas.addEventListener('touchstart',e=>{e.preventDefault();const touch=e.touches[0];const rect=canvas.getBoundingClientRect();const x=touch.clientX-rect.left;const y=touch.clientY-rect.top;for(let id in nodes){if(Math.sqrt((x-nodes[id].x)**2+(y-nodes[id].y)**2)<30){handleInteraction(parseInt(id));break}}});
