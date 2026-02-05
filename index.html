@@ -239,56 +239,55 @@ function getValidMoves(startNode) {
     const piece = gameState.pieces[startNode];
     let valid = [];
 
-    // Find all neighbors for any piece type
-    const getNeighbors = (nodeId) => roads.filter(r => r.includes(nodeId)).map(r => r[0] === nodeId ? r[1] : r[0]);
+    const getNeighbors = (id) => roads.filter(r => r.includes(id)).map(r => r[0] === id ? r[1] : r[0]);
 
     if (piece.type === 'triangle' || piece.type === 'king') {
-        const firstStepNeighbors = getNeighbors(startNode);
-        
-        firstStepNeighbors.forEach(step1 => {
-            // Check Step 1
-            const p1 = gameState.pieces[step1];
-            if (!p1 || p1.team !== piece.team) valid.push(step1);
-            if (p1) return; // Blocked path
-
-            // Calculate direction vector for straight line check
-            const dx = nodes[step1].x - nodes[startNode].x;
-            const dy = nodes[step1].y - nodes[startNode].y;
-
-            // Check Step 2
-            const step2Neighbors = getNeighbors(step1);
-            step2Neighbors.forEach(step2 => {
-                if (step2 === startNode) return;
-                
-                const dx2 = nodes[step2].x - nodes[step1].x;
-                const dy2 = nodes[step2].y - nodes[step1].y;
-
-                // Normalize and check if direction is the same (Straight Line)
-                const isStraight = Math.abs(Math.atan2(dy2, dx2) - Math.atan2(dy, dx)) < 0.1;
-                
-                if (isStraight) {
-                    const p2 = gameState.pieces[step2];
-                    if (!p2 || p2.team !== piece.team) valid.push(step2);
-                    if (p2) return;
-
-                    // Check Step 3
-                    const step3Neighbors = getNeighbors(step2);
-                    step3Neighbors.forEach(step3 => {
-                        if (step3 === step1) return;
-                        const dx3 = nodes[step3].x - nodes[step2].x;
-                        const dy3 = nodes[step3].y - nodes[step2].y;
-                        const isStillStraight = Math.abs(Math.atan2(dy3, dx3) - Math.atan2(dy2, dx2)) < 0.1;
-                        
-                        if (isStillStraight) {
-                            const p3 = gameState.pieces[step3];
-                            if (!p3 || p3.team !== piece.team) valid.push(step3);
-                        }
-                    });
-                }
+        // BFS to find straight paths up to 3 steps
+        let queue = [];
+        // Start by looking at direct neighbors
+        getNeighbors(startNode).forEach(neighbor => {
+            queue.push({
+                current: neighbor,
+                prev: startNode,
+                dist: 1,
+                dx: nodes[neighbor].x - nodes[startNode].x,
+                dy: nodes[neighbor].y - nodes[startNode].y
             });
         });
+
+        while (queue.length > 0) {
+            let path = queue.shift();
+            const target = gameState.pieces[path.current];
+
+            // If move is valid (empty or enemy), add to valid list
+            if (!target || target.team !== piece.team) valid.push(path.current);
+            
+            // Can only continue path if node was empty and distance < 3
+            if (!target && path.dist < 3) {
+                getNeighbors(path.current).forEach(next => {
+                    if (next === path.prev) return; // Don't go back
+
+                    const nextDx = nodes[next].x - nodes[path.current].x;
+                    const nextDy = nodes[next].y - nodes[path.current].y;
+
+                    // Check if direction is roughly the same (Straight line check)
+                    const angle1 = Math.atan2(path.dy, path.dx);
+                    const angle2 = Math.atan2(nextDy, nextDx);
+                    
+                    if (Math.abs(angle1 - angle2) < 0.2) { // 0.2 rad tolerance for hand-placed nodes
+                        queue.push({
+                            current: next,
+                            prev: path.current,
+                            dist: path.dist + 1,
+                            dx: nextDx,
+                            dy: nextDy
+                        });
+                    }
+                });
+            }
+        }
     } else {
-        // Standard 1-step logic for other pieces
+        // Standard 1-step logic
         getNeighbors(startNode).forEach(neighbor => {
             const targetPiece = gameState.pieces[neighbor];
             if (piece.type === 'x') {
@@ -299,7 +298,6 @@ function getValidMoves(startNode) {
             if (!targetPiece || targetPiece.team !== piece.team) valid.push(neighbor);
         });
     }
-
     return [...new Set(valid)];
 }
 
