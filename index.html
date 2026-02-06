@@ -111,7 +111,7 @@ function inviteTelegramFriend(type) {
     const param = type === 'spectator' ? `spec_${peer.id}` : peer.id;
     const inviteLink = `${botLink}?startapp=${param}`;
     const shareText = type === 'spectator' ? "Come watch our IQ 17 match live!" : "I challenge you to a game of IQ 17!";
-    tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(shareText)}&startapp=${param}`);
+    tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(shareText)}`);
 }
 
 function connectToPeer(peerId) {
@@ -244,19 +244,12 @@ function getValidMoves(startNode) {
     let queue = [{id: startNode, dist: 0, lastNode: null}];
     visited.set(startNode, 0);
 
-    // Standard shortcuts
     const shortcuts = {
         40:[25], 25:[40], 39:[26], 26:[39], 43:[35], 35:[43],
         4:[14], 14:[4], 3:[13], 13:[3], 0:[5], 5:[0]
     };
 
-    // Teleportation landing points (only active from specific origins)
-    const teleports = {
-        13: [6],
-        14: [7],
-        25: [36],
-        26: [37]
-    };
+    const teleports = { 13: [6], 14: [7], 25: [36], 26: [37] };
 
     while (queue.length > 0) {
         let current = queue.shift();
@@ -264,17 +257,20 @@ function getValidMoves(startNode) {
 
         let neighbors = roads.filter(r => r.includes(current.id)).map(r => r[0] === current.id ? r[1] : r[0]);
         
-        // Add shortcuts if applicable
-        if (isSpecialPiece && shortcuts[current.id]) {
-            neighbors = [...new Set([...neighbors, ...shortcuts[current.id]])];
-        }
-
-        // Add specific teleports if the piece is ON the designated origin node
-        if (isSpecialPiece && teleports[current.id]) {
-            neighbors = [...new Set([...neighbors, ...teleports[current.id]])];
-        }
+        if (isSpecialPiece && shortcuts[current.id]) neighbors = [...new Set([...neighbors, ...shortcuts[current.id]])];
+        if (isSpecialPiece && teleports[current.id]) neighbors = [...new Set([...neighbors, ...teleports[current.id]])];
 
         neighbors.forEach(neighbor => {
+            // Hard block zigzag/diagonal restrictions
+            if (isSpecialPiece) {
+                if (current.id == 26 && neighbor == 36) return;
+                if (current.id == 25 && neighbor == 37) return;
+                if (current.id == 27 && (neighbor == 36 || neighbor == 37)) return;
+                if (current.id == 15 && (neighbor == 7 || neighbor == 6)) return;
+                if (current.id == 13 && neighbor == 7) return;
+                if (current.id == 14 && neighbor == 6) return;
+            }
+
             const isJump = isSpecialPiece && (
                 (shortcuts[current.id] && shortcuts[current.id].includes(neighbor)) ||
                 (teleports[current.id] && teleports[current.id].includes(neighbor))
@@ -285,8 +281,6 @@ function getValidMoves(startNode) {
                 const dy1 = nodes[current.id].y - nodes[current.lastNode].y;
                 const dx2 = nodes[neighbor].x - nodes[current.id].x;
                 const dy2 = nodes[neighbor].y - nodes[current.id].y;
-                
-                // Tightened tolerance to prevent zig-zags
                 const isStraight = Math.abs(Math.atan2(dy1, dx1) - Math.atan2(dy2, dx2)) < 0.02;
                 if (!isStraight) return;
             }
