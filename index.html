@@ -220,13 +220,17 @@ function showWinPopup(winner) {
 const scaleX = canvas.width / 400;
 const scaleY = canvas.height / 700;
 
+// ADJUSTED: Increased spacing for the middle boxes (Nodes 13-24)
 const nodes = {
     0: {x: 200*scaleX, y: 50*scaleY}, 1: {x: 80*scaleX, y: 110*scaleY}, 2: {x: 160*scaleX, y: 110*scaleY}, 3: {x: 240*scaleX, y: 110*scaleY}, 4: {x: 320*scaleX, y: 110*scaleY}, 
     5: {x: 80*scaleX, y: 180*scaleY}, 6: {x: 160*scaleX, y: 180*scaleY}, 7: {x: 240*scaleX, y: 180*scaleY}, 8: {x: 320*scaleX, y: 180*scaleY}, 
     9: {x: 80*scaleX, y: 250*scaleY}, 10: {x: 160*scaleX, y: 250*scaleY}, 11: {x: 240*scaleX, y: 250*scaleY}, 12: {x: 320*scaleX, y: 250*scaleY}, 
-    13: {x: 50*scaleX, y: 320*scaleY}, 14: {x: 110*scaleX, y: 320*scaleY}, 15: {x: 170*scaleX, y: 320*scaleY}, 16: {x: 230*scaleX, y: 320*scaleY}, 17: {x: 290*scaleX, y: 320*scaleY}, 18: {x: 350*scaleX, y: 320*scaleY}, 
-    19: {x: 50*scaleX, y: 370*scaleY}, 20: {x: 110*scaleX, y: 370*scaleY}, 21: {x: 170*scaleX, y: 370*scaleY}, 22: {x: 230*scaleX, y: 370*scaleY}, 23: {x: 290*scaleX, y: 370*scaleY}, 24: {x: 350*scaleX, y: 370*scaleY}, 
-    30: {x: 50*scaleX, y: 420*scaleY}, 29: {x: 110*scaleX, y: 420*scaleY}, 28: {x: 170*scaleX, y: 420*scaleY}, 27: {x: 230*scaleX, y: 420*scaleY}, 26: {x: 290*scaleX, y: 420*scaleY}, 25: {x: 350*scaleX, y: 420*scaleY}, 
+    // Center Row 1 (More spread out)
+    13: {x: 35*scaleX, y: 310*scaleY}, 14: {x: 101*scaleX, y: 310*scaleY}, 15: {x: 167*scaleX, y: 310*scaleY}, 16: {x: 233*scaleX, y: 310*scaleY}, 17: {x: 299*scaleX, y: 310*scaleY}, 18: {x: 365*scaleX, y: 310*scaleY}, 
+    // Center Row 2 (More spread out)
+    19: {x: 35*scaleX, y: 380*scaleY}, 20: {x: 101*scaleX, y: 380*scaleY}, 21: {x: 167*scaleX, y: 380*scaleY}, 22: {x: 233*scaleX, y: 380*scaleY}, 23: {x: 299*scaleX, y: 380*scaleY}, 24: {x: 365*scaleX, y: 380*scaleY}, 
+    // Bottom Rows
+    30: {x: 50*scaleX, y: 440*scaleY}, 29: {x: 110*scaleX, y: 440*scaleY}, 28: {x: 170*scaleX, y: 440*scaleY}, 27: {x: 230*scaleX, y: 440*scaleY}, 26: {x: 290*scaleX, y: 440*scaleY}, 25: {x: 350*scaleX, y: 440*scaleY}, 
     31: {x: 80*scaleX, y: 490*scaleY}, 32: {x: 160*scaleX, y: 490*scaleY}, 33: {x: 240*scaleX, y: 490*scaleY}, 34: {x: 320*scaleX, y: 490*scaleY}, 
     38: {x: 80*scaleX, y: 560*scaleY}, 37: {x: 160*scaleX, y: 560*scaleY}, 36: {x: 240*scaleX, y: 560*scaleY}, 35: {x: 320*scaleX, y: 560*scaleY}, 
     39: {x: 80*scaleX, y: 630*scaleY}, 40: {x: 160*scaleX, y: 630*scaleY}, 41: {x: 240*scaleX, y: 630*scaleY}, 42: {x: 320*scaleX, y: 630*scaleY}, 43: {x: 200*scaleX, y: 680*scaleY}
@@ -251,7 +255,6 @@ function getValidMoves(startNode) {
         let neighbors = roads.filter(r => r.includes(current.id)).map(r => r[0] === current.id ? r[1] : r[0]);
 
         neighbors.forEach(neighbor => {
-            // ANGLE CHECK: Restrict hard turns
             if (isSpecialPiece && current.lastNode !== null) {
                 const p1 = nodes[current.lastNode];
                 const p2 = nodes[current.id];
@@ -263,10 +266,9 @@ function getValidMoves(startNode) {
                 let diff = Math.abs(angle1 - angle2);
                 if (diff > Math.PI) diff = 2 * Math.PI - diff;
 
-                // Turn sharpness in degrees. 0 = perfectly straight.
                 const turnInDegrees = diff * (180 / Math.PI);
                 
-                // Allow only turns up to 25.61 degrees off-center
+                // MAINTAINED: 25.61 degree rule
                 if (turnInDegrees > 25.61) return; 
             }
 
