@@ -263,8 +263,11 @@ function getValidMoves(startNode) {
         neighbors.forEach(neighbor => {
             // Hard block zigzag/diagonal restrictions
             if (isSpecialPiece) {
-                if (current.id == 26 && neighbor == 36) return;
-                if (current.id == 25 && neighbor == 37) return;
+                // YOUR NEW RESTRICTIONS:
+                if (current.id == 26 && (neighbor == 36 || neighbor == 40)) return;
+                if (current.id == 25 && (neighbor == 37 || neighbor == 39)) return;
+                
+                // Existing hard blocks
                 if (current.id == 27 && (neighbor == 36 || neighbor == 37)) return;
                 if (current.id == 15 && (neighbor == 7 || neighbor == 6)) return;
                 if (current.id == 13 && neighbor == 7) return;
