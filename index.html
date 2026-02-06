@@ -251,31 +251,35 @@ function getValidMoves(startNode) {
 
     const teleports = { 13: [6], 14: [7], 25: [36], 26: [37] };
 
+    // FORCE REMOVAL of your specific restricted paths from the move objects
+    if (teleports[26]) teleports[26] = teleports[26].filter(n => n !== 36 && n !== 40);
+    if (teleports[25]) teleports[25] = teleports[25].filter(n => n !== 37 && n !== 39);
+    if (shortcuts[26]) shortcuts[26] = shortcuts[26].filter(n => n !== 36 && n !== 40);
+    if (shortcuts[25]) shortcuts[25] = shortcuts[25].filter(n => n !== 37 && n !== 39);
+
     while (queue.length > 0) {
         let current = queue.shift();
         if (current.dist >= maxDist) continue;
 
-        // OVERWRITE neighbor list logic to force teleportation rules
         let neighbors = roads.filter(r => r.includes(current.id)).map(r => r[0] === current.id ? r[1] : r[0]);
         
         if (isSpecialPiece) {
             if (shortcuts[current.id]) neighbors = [...new Set([...neighbors, ...shortcuts[current.id]])];
             if (teleports[current.id]) neighbors = [...new Set([...neighbors, ...teleports[current.id]])];
-            
-            // STRICT OVERWRITE: Filter out forbidden nodes before processing
-            neighbors = neighbors.filter(n => {
-                if (current.id == 26 && (n == 36 || n == 40)) return false;
-                if (current.id == 25 && (n == 37 || n == 39)) return false;
-                // Preserve original game constraints
-                if (current.id == 27 && (n == 36 || n == 37)) return false;
-                if (current.id == 15 && (n == 7 || n == 6)) return false;
-                if (current.id == 13 && n == 7) return false;
-                if (current.id == 14 && n == 6) return false;
-                return true;
-            });
         }
 
         neighbors.forEach(neighbor => {
+            // THE ULTIMATE BLOCKER: Hard exit if these specific combinations appear anywhere in the path
+            if (isSpecialPiece) {
+                if (current.id == 26 && (neighbor == 36 || neighbor == 40)) return;
+                if (current.id == 25 && (neighbor == 37 || neighbor == 39)) return;
+                // Preserve original constraints
+                if (current.id == 27 && (neighbor == 36 || neighbor == 37)) return;
+                if (current.id == 15 && (neighbor == 7 || neighbor == 6)) return;
+                if (current.id == 13 && neighbor == 7) return;
+                if (current.id == 14 && neighbor == 6) return;
+            }
+
             const isJump = isSpecialPiece && (
                 (shortcuts[current.id] && shortcuts[current.id].includes(neighbor)) ||
                 (teleports[current.id] && teleports[current.id].includes(neighbor))
