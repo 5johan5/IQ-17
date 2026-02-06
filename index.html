@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IQ 17 - Vector Movement Edition</title>
+    <title>IQ 17 - 140 Degree Logic</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
@@ -220,14 +220,13 @@ function showWinPopup(winner) {
 const scaleX = canvas.width / 400;
 const scaleY = canvas.height / 700;
 
-// Nodes 13, 14, 25, 26 are positioned for the 170° vector alignment without overlapping others.
 const nodes = {
     0: {x: 200*scaleX, y: 50*scaleY}, 1: {x: 80*scaleX, y: 110*scaleY}, 2: {x: 160*scaleX, y: 110*scaleY}, 3: {x: 240*scaleX, y: 110*scaleY}, 4: {x: 320*scaleX, y: 110*scaleY}, 
     5: {x: 80*scaleX, y: 180*scaleY}, 6: {x: 160*scaleX, y: 180*scaleY}, 7: {x: 240*scaleX, y: 180*scaleY}, 8: {x: 320*scaleX, y: 180*scaleY}, 
     9: {x: 80*scaleX, y: 250*scaleY}, 10: {x: 160*scaleX, y: 250*scaleY}, 11: {x: 240*scaleX, y: 250*scaleY}, 12: {x: 320*scaleX, y: 250*scaleY}, 
-    13: {x: 145*scaleX, y: 320*scaleY}, 14: {x: 255*scaleX, y: 320*scaleY}, 15: {x: 170*scaleX, y: 320*scaleY}, 16: {x: 230*scaleX, y: 320*scaleY}, 17: {x: 290*scaleX, y: 320*scaleY}, 18: {x: 350*scaleX, y: 320*scaleY}, 
+    13: {x: 50*scaleX, y: 320*scaleY}, 14: {x: 110*scaleX, y: 320*scaleY}, 15: {x: 170*scaleX, y: 320*scaleY}, 16: {x: 230*scaleX, y: 320*scaleY}, 17: {x: 290*scaleX, y: 320*scaleY}, 18: {x: 350*scaleX, y: 320*scaleY}, 
     19: {x: 50*scaleX, y: 370*scaleY}, 20: {x: 110*scaleX, y: 370*scaleY}, 21: {x: 170*scaleX, y: 370*scaleY}, 22: {x: 230*scaleX, y: 370*scaleY}, 23: {x: 290*scaleX, y: 370*scaleY}, 24: {x: 350*scaleX, y: 370*scaleY}, 
-    30: {x: 50*scaleX, y: 420*scaleY}, 29: {x: 110*scaleX, y: 420*scaleY}, 28: {x: 170*scaleX, y: 420*scaleY}, 27: {x: 230*scaleX, y: 420*scaleY}, 26: {x: 255*scaleX, y: 420*scaleY}, 25: {x: 145*scaleX, y: 420*scaleY}, 
+    30: {x: 50*scaleX, y: 420*scaleY}, 29: {x: 110*scaleX, y: 420*scaleY}, 28: {x: 170*scaleX, y: 420*scaleY}, 27: {x: 230*scaleX, y: 420*scaleY}, 26: {x: 290*scaleX, y: 420*scaleY}, 25: {x: 350*scaleX, y: 420*scaleY}, 
     31: {x: 80*scaleX, y: 490*scaleY}, 32: {x: 160*scaleX, y: 490*scaleY}, 33: {x: 240*scaleX, y: 490*scaleY}, 34: {x: 320*scaleX, y: 490*scaleY}, 
     38: {x: 80*scaleX, y: 560*scaleY}, 37: {x: 160*scaleX, y: 560*scaleY}, 36: {x: 240*scaleX, y: 560*scaleY}, 35: {x: 320*scaleX, y: 560*scaleY}, 
     39: {x: 80*scaleX, y: 630*scaleY}, 40: {x: 160*scaleX, y: 630*scaleY}, 41: {x: 240*scaleX, y: 630*scaleY}, 42: {x: 320*scaleX, y: 630*scaleY}, 43: {x: 200*scaleX, y: 680*scaleY}
@@ -264,6 +263,8 @@ function getValidMoves(startNode) {
                 if (diff > Math.PI) diff = 2 * Math.PI - diff;
 
                 const turnInDegrees = diff * (180 / Math.PI);
+                
+                // FIXED: Set to 40 degree threshold for a 140 degree interior angle
                 if (turnInDegrees > 40) return; 
             }
 
