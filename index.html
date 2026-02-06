@@ -260,20 +260,20 @@ function getValidMoves(startNode) {
         if (isSpecialPiece && shortcuts[current.id]) neighbors = [...new Set([...neighbors, ...shortcuts[current.id]])];
         if (isSpecialPiece && teleports[current.id]) neighbors = [...new Set([...neighbors, ...teleports[current.id]])];
 
-        neighbors.forEach(neighbor => {
-            // Hard block zigzag/diagonal restrictions
+        // NEW STRICT FILTERING
+        neighbors = neighbors.filter(neighbor => {
             if (isSpecialPiece) {
-                // YOUR NEW RESTRICTIONS:
-                if (current.id == 26 && (neighbor == 36 || neighbor == 40)) return;
-                if (current.id == 25 && (neighbor == 37 || neighbor == 39)) return;
-                
-                // Existing hard blocks
-                if (current.id == 27 && (neighbor == 36 || neighbor == 37)) return;
-                if (current.id == 15 && (neighbor == 7 || neighbor == 6)) return;
-                if (current.id == 13 && neighbor == 7) return;
-                if (current.id == 14 && neighbor == 6) return;
+                if (current.id == 26 && (neighbor == 36 || neighbor == 40)) return false;
+                if (current.id == 25 && (neighbor == 37 || neighbor == 39)) return false;
+                if (current.id == 27 && (neighbor == 36 || neighbor == 37)) return false;
+                if (current.id == 15 && (neighbor == 7 || neighbor == 6)) return false;
+                if (current.id == 13 && neighbor == 7) return false;
+                if (current.id == 14 && neighbor == 6) return false;
             }
+            return true;
+        });
 
+        neighbors.forEach(neighbor => {
             const isJump = isSpecialPiece && (
                 (shortcuts[current.id] && shortcuts[current.id].includes(neighbor)) ||
                 (teleports[current.id] && teleports[current.id].includes(neighbor))
