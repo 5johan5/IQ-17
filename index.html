@@ -255,23 +255,25 @@ function getValidMoves(startNode) {
         let current = queue.shift();
         if (current.dist >= maxDist) continue;
 
+        // OVERWRITE neighbor list logic to force teleportation rules
         let neighbors = roads.filter(r => r.includes(current.id)).map(r => r[0] === current.id ? r[1] : r[0]);
         
-        if (isSpecialPiece && shortcuts[current.id]) neighbors = [...new Set([...neighbors, ...shortcuts[current.id]])];
-        if (isSpecialPiece && teleports[current.id]) neighbors = [...new Set([...neighbors, ...teleports[current.id]])];
-
-        // NEW STRICT FILTERING
-        neighbors = neighbors.filter(neighbor => {
-            if (isSpecialPiece) {
-                if (current.id == 26 && (neighbor == 36 || neighbor == 40)) return false;
-                if (current.id == 25 && (neighbor == 37 || neighbor == 39)) return false;
-                if (current.id == 27 && (neighbor == 36 || neighbor == 37)) return false;
-                if (current.id == 15 && (neighbor == 7 || neighbor == 6)) return false;
-                if (current.id == 13 && neighbor == 7) return false;
-                if (current.id == 14 && neighbor == 6) return false;
-            }
-            return true;
-        });
+        if (isSpecialPiece) {
+            if (shortcuts[current.id]) neighbors = [...new Set([...neighbors, ...shortcuts[current.id]])];
+            if (teleports[current.id]) neighbors = [...new Set([...neighbors, ...teleports[current.id]])];
+            
+            // STRICT OVERWRITE: Filter out forbidden nodes before processing
+            neighbors = neighbors.filter(n => {
+                if (current.id == 26 && (n == 36 || n == 40)) return false;
+                if (current.id == 25 && (n == 37 || n == 39)) return false;
+                // Preserve original game constraints
+                if (current.id == 27 && (n == 36 || n == 37)) return false;
+                if (current.id == 15 && (n == 7 || n == 6)) return false;
+                if (current.id == 13 && n == 7) return false;
+                if (current.id == 14 && n == 6) return false;
+                return true;
+            });
+        }
 
         neighbors.forEach(neighbor => {
             const isJump = isSpecialPiece && (
