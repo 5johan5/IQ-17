@@ -268,15 +268,8 @@ function getValidMoves(startNode) {
                 const dx2 = nodes[neighbor].x - nodes[current.id].x;
                 const dy2 = nodes[neighbor].y - nodes[current.id].y;
                 
-                // ADDED: Logic to allow pieces to land on nodes 7 and 6 during backward movement from shortcuts
-                const isManualStraight = (current.id == 36 && neighbor == 35) || (current.id == 35 && neighbor == 36) ||
-                                         (current.id == 37 && neighbor == 38) || (current.id == 38 && neighbor == 37) ||
-                                         (current.id == 7 && neighbor == 8) || (current.id == 8 && neighbor == 7) ||
-                                         (current.id == 6 && neighbor == 5) || (current.id == 5 && neighbor == 6) ||
-                                         (current.id == 14 && neighbor == 7) || (current.id == 7 && neighbor == 4) ||
-                                         (current.id == 13 && neighbor == 6) || (current.id == 6 && neighbor == 3);
-
-                const isStraight = Math.abs(Math.atan2(dy1, dx1) - Math.atan2(dy2, dx2)) < 0.1 || isManualStraight;
+                // Tightened tolerance (0.02) to block any non-straight movement (zig-zags)
+                const isStraight = Math.abs(Math.atan2(dy1, dx1) - Math.atan2(dy2, dx2)) < 0.02;
                 if (!isStraight) return;
             }
 
