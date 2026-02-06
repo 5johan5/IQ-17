@@ -111,7 +111,7 @@ function inviteTelegramFriend(type) {
     const param = type === 'spectator' ? `spec_${peer.id}` : peer.id;
     const inviteLink = `${botLink}?startapp=${param}`;
     const shareText = type === 'spectator' ? "Come watch our IQ 17 match live!" : "I challenge you to a game of IQ 17!";
-    tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(shareText)}`);
+    tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(shareText)}&startapp=${param}`);
 }
 
 function connectToPeer(peerId) {
@@ -244,9 +244,18 @@ function getValidMoves(startNode) {
     let queue = [{id: startNode, dist: 0, lastNode: null}];
     visited.set(startNode, 0);
 
+    // Standard shortcuts
     const shortcuts = {
-        40:[25], 25:[40, 36], 39:[26], 26:[39, 37], 43:[35], 35:[43],
-        4:[14], 14:[4, 7], 3:[13], 13:[3, 6], 0:[5], 5:[0]
+        40:[25], 25:[40], 39:[26], 26:[39], 43:[35], 35:[43],
+        4:[14], 14:[4], 3:[13], 13:[3], 0:[5], 5:[0]
+    };
+
+    // Teleportation landing points (only active from specific origins)
+    const teleports = {
+        13: [6],
+        14: [7],
+        25: [36],
+        26: [37]
     };
 
     while (queue.length > 0) {
@@ -255,19 +264,29 @@ function getValidMoves(startNode) {
 
         let neighbors = roads.filter(r => r.includes(current.id)).map(r => r[0] === current.id ? r[1] : r[0]);
         
+        // Add shortcuts if applicable
         if (isSpecialPiece && shortcuts[current.id]) {
             neighbors = [...new Set([...neighbors, ...shortcuts[current.id]])];
         }
 
+        // Add specific teleports if the piece is ON the designated origin node
+        if (isSpecialPiece && teleports[current.id]) {
+            neighbors = [...new Set([...neighbors, ...teleports[current.id]])];
+        }
+
         neighbors.forEach(neighbor => {
-            const isTeleport = isSpecialPiece && shortcuts[current.id] && shortcuts[current.id].includes(neighbor);
+            const isJump = isSpecialPiece && (
+                (shortcuts[current.id] && shortcuts[current.id].includes(neighbor)) ||
+                (teleports[current.id] && teleports[current.id].includes(neighbor))
+            );
             
-            if (current.lastNode !== null && !isTeleport) {
+            if (current.lastNode !== null && !isJump) {
                 const dx1 = nodes[current.id].x - nodes[current.lastNode].x;
                 const dy1 = nodes[current.id].y - nodes[current.lastNode].y;
                 const dx2 = nodes[neighbor].x - nodes[current.id].x;
                 const dy2 = nodes[neighbor].y - nodes[current.id].y;
                 
+                // Tightened tolerance to prevent zig-zags
                 const isStraight = Math.abs(Math.atan2(dy1, dx1) - Math.atan2(dy2, dx2)) < 0.02;
                 if (!isStraight) return;
             }
