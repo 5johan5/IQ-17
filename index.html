@@ -3,32 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IQ 17 - Optimized UI</title>
+    <title>IQ 17 - Secure Room</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         body { margin: 0; background: #fff; font-family: sans-serif; text-align: center; overflow: hidden; }
         canvas { border-bottom: 2px solid #ccc; display: block; margin: 0 auto; touch-action: none; background: #ffffff; transition: height 0.3s ease; }
-        
         #ui-container { position: fixed; bottom: 0; left: 0; width: 100%; background: #fff; transition: transform 0.3s ease; z-index: 50; box-shadow: 0 -2px 10px rgba(0,0,0,0.1); }
         #ui-container.hidden { transform: translateY(140px); }
         #ui { padding: 10px; background: #fff; height: 140px; box-sizing: border-box; }
-        
         #pull-tab { position: absolute; top: -30px; left: 50%; transform: translateX(-50%); background: #fff; border: 1px solid #ccc; border-bottom: none; padding: 5px 20px; border-radius: 10px 10px 0 0; cursor: pointer; font-size: 12px; font-weight: bold; color: #0088cc; }
-        
-        /* Turn indicator text positioned below the menu bar */
-        #status { 
-            position: absolute; 
-            top: -65px; 
-            left: 0; 
-            width: 100%; 
-            font-size: 22px; 
-            font-weight: 900; 
-            text-transform: uppercase; 
-            pointer-events: none;
-            text-shadow: 0px 0px 5px rgba(255,255,255,0.8);
-        }
-
+        #status { position: absolute; top: -65px; left: 0; width: 100%; font-size: 22px; font-weight: 900; text-transform: uppercase; pointer-events: none; text-shadow: 0px 0px 5px rgba(255,255,255,0.8); }
         .btn { padding: 12px 24px; background: #0088cc; color: white; border: none; border-radius: 8px; cursor: pointer; margin: 5px; font-weight: bold; font-size: 16px; }
         #game-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 100; flex-direction: column; justify-content: center; align-items: center; color: white; }
         .popup-box { background: white; padding: 30px; border-radius: 15px; color: #333; width: 80%; max-width: 300px; }
@@ -39,8 +24,10 @@
     <div id="game-overlay">
         <div class="popup-box">
             <h2 id="win-message">BLUE WINS!</h2>
-            <button class="btn" style="background:#00AD11" onclick="triggerRestart()">Restart</button>
-            <button class="btn" style="background:#888" onclick="document.getElementById('game-overlay').style.display='none'">Close</button>
+            <div id="popup-controls">
+                <button class="btn" style="background:#00AD11" onclick="triggerRestart()">Restart</button>
+                <button class="btn" style="background:#888" onclick="document.getElementById('game-overlay').style.display='none'">Close</button>
+            </div>
         </div>
     </div>
 
@@ -91,7 +78,7 @@ const nodes = {
 const roads = [[0,2],[0,3],[1,2],[2,3],[3,4],[1,5],[2,6],[3,7],[4,8],[5,6],[6,7],[7,8],[5,9],[6,10],[7,11],[8,12],[9,10],[10,11],[11,12],[2,5],[3,6],[6,9],[4,7],[7,10],[8,11],[9,13],[9,14],[10,14],[10,15],[11,16],[11,17],[12,18],[12,17],[13,14],[14,15],[16,17],[17,18],[13,19],[14,20],[15,21],[16,22],[17,23],[18,24],[19,20],[20,21],[22,23],[23,24],[19,30],[20,29],[21,28],[22,27],[23,26],[24,25],[30,29],[29,28],[27,26],[26,25],[15,22],[21,27],[31,30],[31,29],[32,29],[32,28],[33,27],[33,26],[34,26],[34,25],[31,32],[32,33],[33,34],[31,38],[32,37],[33,36],[34,35],[38,37],[37,36],[36,35],[38,39],[37,40],[36,41],[35,42],[39,40],[40,41],[41,42],[40,43],[41,43],[38,32],[39,37],[37,33],[40,36],[36,34],[41,35],[18,23],[23,27],[16,23],[23,25],[13,20],[20,28],[15,20],[20,30]];
 
 let peer = new Peer({ config: {'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }, { 'urls': 'turn:global.relay.metered.ca:443', 'username': '12086455af0334c526b9d3da', 'credential': 'ZxLMG6ZJX9R7oyQE' }], 'iceTransportPolicy': 'relay' } });
-let conn = null, spectators = [], myRole = null;
+let conn = null, spectators = [], myRole = null, isRedAssigned = false;
 
 const initialGameState = () => ({
     turn: 'blue', selectedNode: null, lastMove: null, gameOver: false,
@@ -133,7 +120,6 @@ function getValidMoves(startNode) {
             if (isSpecialPiece && current.lastNode !== null) {
                 const pairMatch = (a, b) => (startNode === a && neighbor === b) || (startNode === b && neighbor === a);
                 const isSpecialSituation = pairMatch(28, 38) || pairMatch(16, 8);
-                
                 if (!isSpecialSituation) {
                     const p1 = nodes[current.lastNode], p2 = nodes[current.id], p3 = nodes[neighbor];
                     const angle1 = Math.atan2(p2.y - p1.y, p2.x - p1.x), angle2 = Math.atan2(p3.y - p2.y, p3.x - p2.x);
@@ -188,15 +174,8 @@ function drawBoard(){ctx.clearRect(0,0,canvas.width,canvas.height);ctx.strokeSty
 function drawHex(x,y,size){ctx.beginPath();for(let i=0;i<6;i++){ctx.lineTo(x+size*Math.cos(i*Math.PI/3),y+size*Math.sin(i*Math.PI/3))}ctx.closePath()}
 
 function toggleUI(f=false){
-    if(f || !uiContainer.classList.contains('hidden')){
-        uiContainer.classList.add('hidden');
-        pullTab.innerText="▲ MENU";
-        canvas.height=window.innerHeight;
-    }else{
-        uiContainer.classList.remove('hidden');
-        pullTab.innerText="▼ CLOSE";
-        canvas.height=window.innerHeight-140;
-    }
+    if(f || !uiContainer.classList.contains('hidden')){ uiContainer.classList.add('hidden'); pullTab.innerText="▲ MENU"; canvas.height=window.innerHeight; }
+    else{ uiContainer.classList.remove('hidden'); pullTab.innerText="▼ CLOSE"; canvas.height=window.innerHeight-140; }
     drawBoard();
 }
 
@@ -209,16 +188,61 @@ function updateStatus(){
     statusDiv.style.color=gameState.turn==='blue'?'#2563EB':'#DC2626';
 }
 
-function showWinPopup(w){winMsg.innerText=w.toUpperCase()+" WINS!";winMsg.style.color=w==='blue'?'#2563EB':'#DC2626';overlay.style.display='flex'}
-function inviteTelegramFriend(t){const l=`https://t.me/Iq17game_bot/IQ17?startapp=${t==='spectator'?'spec_'+peer.id:peer.id}`;tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(l)}&text=${encodeURIComponent(t==='spectator'?"Watch live!":"Challenge me!")}`)}
-function setupConnection(){conn.on('open',()=>{updateStatus();invitePlayerBtn.style.display='none';if(myRole=='blue')broadcastState();else conn.send("SYNC")});conn.on('data',d=>{if(d==="SYNC"){broadcastState();return}if(d==="RESET_GAME"){gameState=initialGameState();overlay.style.display='none';drawBoard();updateStatus();return}gameState=d;spectators.forEach(s=>{if(s.open)s.send(gameState)});if(gameState.gameOver)showWinPopup(gameState.winner);drawBoard();updateStatus()})}
+function showWinPopup(w){winMsg.innerText=w.toUpperCase()+" WINS!";winMsg.style.color=w==='blue'?'#2563EB':'#DC2626';document.getElementById('popup-controls').style.display='block';overlay.style.display='flex'}
 
-peer.on('open',id=>{const p=tg.initDataUnsafe.start_param;if(p){if(p.startsWith('spec_')){conn=peer.connect(p.replace('spec_',''),{metadata:{type:'spectator'},reliable:true});myRole='spectator'}else{conn=peer.connect(p,{reliable:true});myRole='red'}setupConnection()}else{updateStatus()}});
-peer.on('connection',c=>{if(c.metadata&&c.metadata.type==='spectator'){spectators.push(c);c.on('open',()=>c.send(gameState))}else{conn=c;myRole='blue';setupConnection()}});
+function showFullRoomPopup(){
+    winMsg.innerText="PLAYERS ARE PLAYING PLEASE ENTER VIA SPECTATOR LINK";
+    winMsg.style.color="#333";
+    winMsg.style.fontSize="18px";
+    document.getElementById('popup-controls').style.display='none';
+    overlay.style.display='flex';
+}
+
+function inviteTelegramFriend(t){const l=`https://t.me/Iq17game_bot/IQ17?startapp=${t==='spectator'?'spec_'+peer.id:peer.id}`;tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(l)}&text=${encodeURIComponent(t==='spectator'?"Watch live!":"Challenge me!")}`)}
+
+function setupConnection(){
+    conn.on('open',()=>{
+        if(myRole==='red'){ conn.send("CHECK_AVAILABILITY"); }
+        updateStatus();
+    });
+    conn.on('data',d=>{
+        if(d==="ROOM_FULL"){ showFullRoomPopup(); conn.close(); return; }
+        if(d==="CHECK_AVAILABILITY"){
+            if(isRedAssigned){ conn.send("ROOM_FULL"); }
+            else { isRedAssigned = true; broadcastState(); }
+            return;
+        }
+        if(d==="SYNC"){ broadcastState(); return; }
+        if(d==="RESET_GAME"){ gameState=initialGameState(); overlay.style.display='none'; drawBoard(); updateStatus(); return; }
+        gameState=d;
+        spectators.forEach(s=>{if(s.open)s.send(gameState)});
+        if(gameState.gameOver)showWinPopup(gameState.winner);
+        drawBoard(); updateStatus();
+    });
+}
+
+peer.on('open',id=>{
+    const p=tg.initDataUnsafe.start_param;
+    if(p){
+        if(p.startsWith('spec_')){ conn=peer.connect(p.replace('spec_',''),{metadata:{type:'spectator'},reliable:true}); myRole='spectator'; }
+        else{ conn=peer.connect(p,{reliable:true}); myRole='red'; }
+        setupConnection();
+    }else{ myRole='blue'; updateStatus(); }
+});
+
+peer.on('connection',c=>{
+    if(c.metadata&&c.metadata.type==='spectator'){ spectators.push(c); c.on('open',()=>c.send(gameState)); }
+    else{
+        if(myRole === 'blue' && isRedAssigned) { 
+            c.on('open', () => c.send("ROOM_FULL"));
+            return;
+        }
+        conn=c; setupConnection();
+    }
+});
 
 canvas.addEventListener('touchstart',e=>{
-    e.preventDefault();
-    toggleUI(true); // Retract menu on tap
+    e.preventDefault(); toggleUI(true);
     const t=e.touches[0], r=canvas.getBoundingClientRect();
     const x=t.clientX-r.left, y=t.clientY-r.top;
     for(let id in nodes){if(Math.sqrt((x-nodes[id].x)**2+(y-nodes[id].y)**2)<30){handleInteraction(parseInt(id));break}}
