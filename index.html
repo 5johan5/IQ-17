@@ -98,7 +98,7 @@ const initialGameState = () => ({
 let gameState = initialGameState();
 
 function triggerCapture(x, y, type, color) {
-    activeAnimations.push({ x, y, type, color, frame: 0, max: 50 });
+    activeAnimations.push({ x, y, type, color, frame: 0, max: 45 });
 }
 
 function getValidMoves(startNode) {
@@ -199,14 +199,13 @@ function drawBoard(){
         }
         if(possible.includes(numId)){ ctx.beginPath();ctx.arc(n.x,n.y,20,0,7);ctx.fillStyle='rgba(255,190,0,0.6)';ctx.fill(); }
 
-        // GREY NODE OUTLINES
+        // GREY OUTLINE FOR NODES
         ctx.beginPath(); ctx.arc(n.x, n.y, 16, 0, 7); ctx.fillStyle='#fff'; ctx.fill(); 
         ctx.strokeStyle='#888'; ctx.lineWidth=1.5; ctx.stroke();
 
         if(p){
             ctx.save();
             const color = p.team=='blue'?'#2563EB':'#DC2626';
-            // SUBTLE GLOW (Reduced shadowBlur)
             ctx.shadowBlur = 8; ctx.shadowColor = color;
             if(p.type==='king'){ drawHex(n.x,n.y,20); ctx.fillStyle='#fff'; ctx.fill(); ctx.strokeStyle=color; ctx.lineWidth=3; ctx.stroke(); } 
             else { ctx.beginPath(); ctx.arc(n.x,n.y,16,0,7); ctx.fillStyle='#fff'; ctx.fill(); ctx.strokeStyle=color; ctx.lineWidth=2; ctx.stroke(); }
@@ -223,15 +222,24 @@ function renderAnimations() {
     activeAnimations.forEach((anim, i) => {
         ctx.save();
         const p = anim.frame / anim.max;
-        ctx.strokeStyle = anim.color; ctx.fillStyle = anim.color; ctx.shadowBlur = 12; ctx.shadowColor = anim.color; ctx.lineWidth = 2.5; ctx.globalAlpha = 1 - p;
+        ctx.strokeStyle = anim.color; ctx.fillStyle = anim.color;
+        ctx.shadowBlur = 12 * (1 - p); ctx.shadowColor = anim.color; ctx.lineWidth = 3; ctx.globalAlpha = 1 - p;
+
         if (anim.type === 'x') {
-            for (let j = 0; j < 5; j++) {
-                const yOff = (j - 2) * 8;
-                ctx.beginPath(); ctx.moveTo(anim.x - 15, anim.y + yOff); ctx.lineTo(anim.x + 15, anim.y + yOff); ctx.stroke();
-            }
+            const stretch = p < 0.3 ? 1 + p : 1.3 * (1 - (p - 0.3) / 0.7);
+            const size = 15 * stretch;
+            ctx.beginPath();
+            ctx.moveTo(anim.x - size, anim.y - size); ctx.lineTo(anim.x + size, anim.y + size);
+            ctx.moveTo(anim.x + size, anim.y - size); ctx.lineTo(anim.x - size, anim.y + size);
+            ctx.stroke();
         } else if (anim.type === 'square') {
-            ctx.translate(anim.x, anim.y); ctx.rotate(p * Math.PI);
-            const d = p * 40; ctx.strokeRect(-10-d,-10-d,8,8); ctx.strokeRect(2+d,-10-d,8,8); ctx.strokeRect(-10-d,2+d,8,8); ctx.strokeRect(2+d,2+d,8,8);
+            const size = 14, offset = size * p;
+            ctx.beginPath();
+            ctx.moveTo(anim.x - size + offset, anim.y - size + offset); ctx.lineTo(anim.x + size - offset, anim.y - size + offset);
+            ctx.moveTo(anim.x - size + offset, anim.y + size - offset); ctx.lineTo(anim.x + size - offset, anim.y + size - offset);
+            ctx.moveTo(anim.x - size + offset, anim.y - size + offset); ctx.lineTo(anim.x - size + offset, anim.y + size - offset);
+            ctx.moveTo(anim.x + size - offset, anim.y - size + offset); ctx.lineTo(anim.x + size - offset, anim.y + size - offset);
+            ctx.stroke();
         } else if (anim.type === 'triangle') {
             for (let j = 0; j < 2; j++) {
                 const s = (p * 60) + (j * 15);
@@ -243,6 +251,7 @@ function renderAnimations() {
             ctx.beginPath(); ctx.arc(0, 0, 8 * (1 - p), 0, 7); ctx.fill();
             for(let j=0; j<8; j++){ ctx.rotate(Math.PI/4); ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0, 60*p); ctx.stroke(); }
         }
+
         ctx.restore(); anim.frame++;
         if (anim.frame >= anim.max) activeAnimations.splice(i, 1);
     });
@@ -272,11 +281,9 @@ function updateStatus(){
 function showWinPopup(w){
     winMsg.innerText=w.toUpperCase()+" TEAM WINS";
     winMsg.style.color=w==='blue'?'#2563EB':'#DC2626';
-    overlay.style.display = 'none';
-    endGameContent.style.display = 'none';
+    overlay.style.display = 'none'; endGameContent.style.display = 'none';
     setTimeout(() => {
-        overlay.style.display = 'flex';
-        endGameContent.style.display = 'block';
+        overlay.style.display = 'flex'; endGameContent.style.display = 'block';
     }, 2000);
 }
 
