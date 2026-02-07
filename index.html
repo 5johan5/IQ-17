@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IQ 17 - Specific Path Exceptions</title>
+    <title>IQ 17 - Bold Indicators</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
@@ -116,7 +116,6 @@ function getValidMoves(startNode) {
             }
 
             if (isSpecialPiece && current.lastNode !== null) {
-                // EXCEPTION RULES: Check for bidirectional path matches
                 const pairMatch = (a, b) => (startNode === a && neighbor === b) || (startNode === b && neighbor === a);
                 const isSpecialSituation = pairMatch(28, 38) || pairMatch(16, 8);
                 
@@ -170,7 +169,71 @@ function handleInteraction(id) {
     drawBoard();
 }
 
-function drawBoard(){ctx.clearRect(0,0,canvas.width,canvas.height);ctx.strokeStyle='#444';ctx.lineWidth=2.5;roads.forEach(p=>{ctx.beginPath();ctx.moveTo(nodes[p[0]].x,nodes[p[0]].y);ctx.lineTo(nodes[p[1]].x,nodes[p[1]].y);ctx.stroke()});const possible=getValidMoves(gameState.selectedNode);for(let id in nodes){const n=nodes[id], p=gameState.pieces[id], numId=parseInt(id);if(gameState.lastMove&&(gameState.lastMove.from===numId||gameState.lastMove.to===numId)){ctx.beginPath();ctx.arc(n.x,n.y,22,0,7);ctx.fillStyle='rgba(0,0,0,0.1)';ctx.fill()}if(gameState.selectedNode===numId){ctx.beginPath();ctx.arc(n.x,n.y,22,0,7);ctx.fillStyle='rgba(0,112,255,0.2)';ctx.fill()}if(possible.includes(numId)){ctx.beginPath();ctx.arc(n.x,n.y,18,0,7);ctx.fillStyle='rgba(255,215,0,0.5)';ctx.fill()}if(p&&p.type==='king'){drawHex(n.x,n.y,20);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle=p.team=='blue'?'#2563EB':'#DC2626';ctx.lineWidth=3;ctx.stroke()}else{ctx.beginPath();ctx.arc(n.x,n.y,16,0,7);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle=p?(p.team=='blue'?'#2563EB':'#DC2626'):'#ccc';ctx.lineWidth=2;ctx.stroke()}if(p){ctx.fillStyle=p.team=='blue'?'#2563EB':'#DC2626';ctx.font='bold 18px Arial';ctx.textAlign='center';let icon=p.type=='king'?'👑':p.type=='triangle'?'▲':p.type=='square'?'■':'X';ctx.fillText(icon,n.x,n.y+(p.type=='king'?7:6))}}}
+function drawBoard() {
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.strokeStyle='#444';
+    ctx.lineWidth=2.5;
+    roads.forEach(p=>{ctx.beginPath();ctx.moveTo(nodes[p[0]].x,nodes[p[0]].y);ctx.lineTo(nodes[p[1]].x,nodes[p[1]].y);ctx.stroke()});
+    
+    const possible = getValidMoves(gameState.selectedNode);
+    
+    for(let id in nodes) {
+        const n=nodes[id], p=gameState.pieces[id], numId=parseInt(id);
+        
+        // PREVIOUS MOVE INDICATOR - Bolder Grey
+        if(gameState.lastMove && (gameState.lastMove.from===numId || gameState.lastMove.to===numId)) {
+            ctx.beginPath();
+            ctx.arc(n.x,n.y,24,0,7);
+            ctx.fillStyle='rgba(60,60,60,0.3)'; 
+            ctx.fill();
+        }
+        
+        // SELECTED INDICATOR
+        if(gameState.selectedNode===numId) {
+            ctx.beginPath();
+            ctx.arc(n.x,n.y,24,0,7);
+            ctx.fillStyle='rgba(0,112,255,0.3)';
+            ctx.fill();
+        }
+        
+        // POSSIBLE MOVE INDICATOR - Bolder Gold
+        if(possible.includes(numId)) {
+            ctx.beginPath();
+            ctx.arc(n.x,n.y,20,0,7);
+            ctx.fillStyle='rgba(255,190,0,0.7)'; // Higher opacity gold
+            ctx.fill();
+            ctx.strokeStyle='rgba(180,140,0,0.8)';
+            ctx.lineWidth=2;
+            ctx.stroke();
+        }
+        
+        if(p && p.type==='king') {
+            drawHex(n.x,n.y,20);
+            ctx.fillStyle='#fff';
+            ctx.fill();
+            ctx.strokeStyle=p.team=='blue'?'#2563EB':'#DC2626';
+            ctx.lineWidth=3;
+            ctx.stroke();
+        } else {
+            ctx.beginPath();
+            ctx.arc(n.x,n.y,16,0,7);
+            ctx.fillStyle='#fff';
+            ctx.fill();
+            ctx.strokeStyle=p?(p.team=='blue'?'#2563EB':'#DC2626'):'#ccc';
+            ctx.lineWidth=2;
+            ctx.stroke();
+        }
+        
+        if(p) {
+            ctx.fillStyle=p.team=='blue'?'#2563EB':'#DC2626';
+            ctx.font='bold 18px Arial';
+            ctx.textAlign='center';
+            let icon=p.type=='king'?'👑':p.type=='triangle'?'▲':p.type=='square'?'■':'X';
+            ctx.fillText(icon,n.x,n.y+(p.type=='king'?7:6));
+        }
+    }
+}
+
 function drawHex(x,y,size){ctx.beginPath();for(let i=0;i<6;i++){ctx.lineTo(x+size*Math.cos(i*Math.PI/3),y+size*Math.sin(i*Math.PI/3))}ctx.closePath()}
 function toggleUI(f=false){if(f||!uiContainer.classList.contains('hidden')){uiContainer.classList.add('hidden');pullTab.innerText="▲ MENU";canvas.height=window.innerHeight}else{uiContainer.classList.remove('hidden');pullTab.innerText="▼ CLOSE";canvas.height=window.innerHeight-140}drawBoard()}
 function triggerRestart(){if(myRole==='spectator')return;gameState=initialGameState();overlay.style.display='none';if(conn&&conn.open)conn.send("RESET_GAME");broadcastState();drawBoard();updateStatus()}
