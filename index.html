@@ -7,16 +7,20 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        body { margin: 0; background: #e0e4e8; font-family: sans-serif; text-align: center; overflow: hidden; }
+        body { margin: 0; background: #0f0c29; font-family: sans-serif; text-align: center; overflow: hidden; }
         
-        /* FROSTED GLASS SOFT GREY BACKGROUND */
+        /* CYBERPUNK CITY NEON BACKGROUND */
         canvas { 
-            border-bottom: 2px solid #ccc; 
+            border-bottom: 2px solid #24243e; 
             display: block; 
             margin: 0 auto; 
             touch-action: none; 
-            background-color: #f0f2f5;
-            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3BaseFilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/feTurbulence%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E");
+            /* Gradient from deep midnight to dark purple */
+            background: linear-gradient(to bottom, #0f0c29, #302b63, #24243e);
+            /* Scanline effect overlay */
+            background-image: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), 
+                              linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            background-size: 100% 4px, 3px 100%;
             transition: height 0.3s ease; 
         }
 
@@ -185,9 +189,9 @@ function handleInteraction(id) {
     drawBoard();
 }
 
-function drawBoard(){ctx.clearRect(0,0,canvas.width,canvas.height);ctx.strokeStyle='#7a869a';ctx.lineWidth=2.5;roads.forEach(p=>{ctx.beginPath();ctx.moveTo(nodes[p[0]].x,nodes[p[0]].y);ctx.lineTo(nodes[p[1]].x,nodes[p[1]].y);ctx.stroke()});const possible=getValidMoves(gameState.selectedNode);for(let id in nodes){const n=nodes[id], p=gameState.pieces[id], numId=parseInt(id);if(gameState.lastMove&&(gameState.lastMove.from===numId||gameState.lastMove.to===numId)){ctx.beginPath();ctx.arc(n.x,n.y,24,0,7);ctx.fillStyle='rgba(0,0,0,0.08)';ctx.fill()}if(gameState.selectedNode===numId){ctx.beginPath();ctx.arc(n.x,n.y,24,0,7);ctx.fillStyle='rgba(0,112,255,0.2)';ctx.fill()}if(possible.includes(numId)){ctx.beginPath();ctx.arc(n.x,n.y,20,0,7);ctx.fillStyle='rgba(255,160,0,0.6)';ctx.fill();ctx.strokeStyle='rgba(180,120,0,0.7)';ctx.lineWidth=2;ctx.stroke()}
-if(p){ctx.shadowBlur=12;ctx.shadowColor=p.team=='blue'?'rgba(37,99,235,0.7)':'rgba(220,38,38,0.7)';}else{ctx.shadowBlur=0;}
-if(p&&p.type==='king'){drawHex(n.x,n.y,20);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle=p.team=='blue'?'#2563EB':'#DC2626';ctx.lineWidth=3;ctx.stroke()}else{ctx.beginPath();ctx.arc(n.x,n.y,16,0,7);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle=p?(p.team=='blue'?'#2563EB':'#DC2626'):'#c1c7d0';ctx.lineWidth=2;ctx.stroke()}if(p){ctx.fillStyle=p.team=='blue'?'#2563EB':'#DC2626';ctx.font='bold 18px Arial';ctx.textAlign='center';let icon=p.type=='king'?'👑':p.type=='triangle'?'▲':p.type=='square'?'■':'X';ctx.fillText(icon,n.x,n.y+(p.type=='king'?7:6))}ctx.shadowBlur=0;}}
+function drawBoard(){ctx.clearRect(0,0,canvas.width,canvas.height);ctx.strokeStyle='rgba(255, 255, 255, 0.15)';ctx.lineWidth=2.5;roads.forEach(p=>{ctx.beginPath();ctx.moveTo(nodes[p[0]].x,nodes[p[0]].y);ctx.lineTo(nodes[p[1]].x,nodes[p[1]].y);ctx.stroke()});const possible=getValidMoves(gameState.selectedNode);for(let id in nodes){const n=nodes[id], p=gameState.pieces[id], numId=parseInt(id);if(gameState.lastMove&&(gameState.lastMove.from===numId||gameState.lastMove.to===numId)){ctx.beginPath();ctx.arc(n.x,n.y,24,0,7);ctx.fillStyle='rgba(255,255,255,0.1)';ctx.fill()}if(gameState.selectedNode===numId){ctx.beginPath();ctx.arc(n.x,n.y,24,0,7);ctx.fillStyle='rgba(0,112,255,0.3)';ctx.fill()}if(possible.includes(numId)){ctx.beginPath();ctx.arc(n.x,n.y,20,0,7);ctx.fillStyle='rgba(255,215,0,0.6)';ctx.fill();ctx.strokeStyle='rgba(255,215,0,0.8)';ctx.lineWidth=2;ctx.stroke()}
+if(p){ctx.shadowBlur=15;ctx.shadowColor=p.team=='blue'?'rgba(37,99,235,0.9)':'rgba(220,38,38,0.9)';}else{ctx.shadowBlur=0;}
+if(p&&p.type==='king'){drawHex(n.x,n.y,20);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle=p.team=='blue'?'#2563EB':'#DC2626';ctx.lineWidth=3;ctx.stroke()}else{ctx.beginPath();ctx.arc(n.x,n.y,16,0,7);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle=p?(p.team=='blue'?'#2563EB':'#DC2626'):'rgba(255, 255, 255, 0.1)';ctx.lineWidth=2;ctx.stroke()}if(p){ctx.fillStyle=p.team=='blue'?'#2563EB':'#DC2626';ctx.font='bold 18px Arial';ctx.textAlign='center';let icon=p.type=='king'?'👑':p.type=='triangle'?'▲':p.type=='square'?'■':'X';ctx.fillText(icon,n.x,n.y+(p.type=='king'?7:6))}ctx.shadowBlur=0;}}
 function drawHex(x,y,size){ctx.beginPath();for(let i=0;i<6;i++){ctx.lineTo(x+size*Math.cos(i*Math.PI/3),y+size*Math.sin(i*Math.PI/3))}ctx.closePath()}
 
 function toggleUI(f=false){
