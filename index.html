@@ -10,7 +10,6 @@
         body { margin: 0; background: #fff; font-family: sans-serif; text-align: center; overflow: hidden; }
         canvas { border-bottom: 2px solid #ccc; display: block; margin: 0 auto; touch-action: none; background: #ffffff; transition: height 0.3s ease; }
         
-        /* Retractable UI Container */
         #ui-container { 
             position: fixed; 
             bottom: 0; 
@@ -22,10 +21,8 @@
             box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
         }
         #ui-container.hidden { transform: translateY(140px); }
-
         #ui { padding: 10px; background: #fff; height: 140px; box-sizing: border-box; }
         
-        /* Drop down / Toggle button */
         #pull-tab {
             position: absolute;
             top: -30px;
@@ -88,7 +85,6 @@ const pullTab = document.getElementById('pull-tab');
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight - 140;
 
-// UI Toggle Logic
 function toggleUI(forceHide = false) {
     if (forceHide || !uiContainer.classList.contains('hidden')) {
         uiContainer.classList.add('hidden');
@@ -300,6 +296,12 @@ function getValidMoves(startNode) {
         let neighbors = roads.filter(r => r.includes(current.id)).map(r => r[0] === current.id ? r[1] : r[0]);
 
         neighbors.forEach(neighbor => {
+            // Updated Rule: No piece (even friendly) can enter King spots (0 or 43) unless capturing an opponent piece
+            if (neighbor === 0 || neighbor === 43) {
+                const targetPiece = gameState.pieces[neighbor];
+                if (!targetPiece || targetPiece.team === piece.team) return;
+            }
+
             if (isSpecialPiece && current.lastNode !== null) {
                 const p1 = nodes[current.lastNode];
                 const p2 = nodes[current.id];
@@ -340,7 +342,7 @@ function drawBoard(){ctx.clearRect(0,0,canvas.width,canvas.height);ctx.strokeSty
 
 canvas.addEventListener('touchstart',e=>{
     e.preventDefault();
-    toggleUI(true); // Automatically hide menu when user clicks the board
+    toggleUI(true); 
     const touch=e.touches[0];
     const rect=canvas.getBoundingClientRect();
     const x=touch.clientX-rect.left;
