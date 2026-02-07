@@ -3,18 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IQ 17 - Bold Indicators</title>
+    <title>IQ 17 - Optimized UI</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         body { margin: 0; background: #fff; font-family: sans-serif; text-align: center; overflow: hidden; }
         canvas { border-bottom: 2px solid #ccc; display: block; margin: 0 auto; touch-action: none; background: #ffffff; transition: height 0.3s ease; }
+        
         #ui-container { position: fixed; bottom: 0; left: 0; width: 100%; background: #fff; transition: transform 0.3s ease; z-index: 50; box-shadow: 0 -2px 10px rgba(0,0,0,0.1); }
         #ui-container.hidden { transform: translateY(140px); }
         #ui { padding: 10px; background: #fff; height: 140px; box-sizing: border-box; }
+        
         #pull-tab { position: absolute; top: -30px; left: 50%; transform: translateX(-50%); background: #fff; border: 1px solid #ccc; border-bottom: none; padding: 5px 20px; border-radius: 10px 10px 0 0; cursor: pointer; font-size: 12px; font-weight: bold; color: #0088cc; }
+        
+        /* Turn indicator text positioned below the menu bar */
+        #status { 
+            position: absolute; 
+            top: -65px; 
+            left: 0; 
+            width: 100%; 
+            font-size: 22px; 
+            font-weight: 900; 
+            text-transform: uppercase; 
+            pointer-events: none;
+            text-shadow: 0px 0px 5px rgba(255,255,255,0.8);
+        }
+
         .btn { padding: 12px 24px; background: #0088cc; color: white; border: none; border-radius: 8px; cursor: pointer; margin: 5px; font-weight: bold; font-size: 16px; }
-        #status { font-size: 18px; font-weight: bold; color: #333; margin-bottom: 5px; text-transform: uppercase; }
         #game-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 100; flex-direction: column; justify-content: center; align-items: center; color: white; }
         .popup-box { background: white; padding: 30px; border-radius: 15px; color: #333; width: 80%; max-width: 300px; }
     </style>
@@ -32,9 +47,9 @@
     <canvas id="gameCanvas"></canvas>
 
     <div id="ui-container">
+        <div id="status">Connecting...</div>
         <div id="pull-tab" onclick="toggleUI()">▲ MENU</div>
         <div id="ui">
-            <div id="status">Connecting...</div>
             <div id="menu">
                 <button id="invite-player-btn" class="btn" onclick="inviteTelegramFriend('player')">Invite Friend</button>
                 <button id="invite-spec-btn" class="btn" style="background:#555" onclick="inviteTelegramFriend('spectator')">Spectators</button>
@@ -51,9 +66,9 @@ const ctx = canvas.getContext('2d');
 const statusDiv = document.getElementById('status');
 const overlay = document.getElementById('game-overlay');
 const winMsg = document.getElementById('win-message');
-const invitePlayerBtn = document.getElementById('invite-player-btn');
 const uiContainer = document.getElementById('ui-container');
 const pullTab = document.getElementById('pull-tab');
+const invitePlayerBtn = document.getElementById('invite-player-btn');
 
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight - 140;
@@ -169,82 +184,45 @@ function handleInteraction(id) {
     drawBoard();
 }
 
-function drawBoard() {
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    ctx.strokeStyle='#444';
-    ctx.lineWidth=2.5;
-    roads.forEach(p=>{ctx.beginPath();ctx.moveTo(nodes[p[0]].x,nodes[p[0]].y);ctx.lineTo(nodes[p[1]].x,nodes[p[1]].y);ctx.stroke()});
-    
-    const possible = getValidMoves(gameState.selectedNode);
-    
-    for(let id in nodes) {
-        const n=nodes[id], p=gameState.pieces[id], numId=parseInt(id);
-        
-        // PREVIOUS MOVE INDICATOR - Bolder Grey
-        if(gameState.lastMove && (gameState.lastMove.from===numId || gameState.lastMove.to===numId)) {
-            ctx.beginPath();
-            ctx.arc(n.x,n.y,24,0,7);
-            ctx.fillStyle='rgba(60,60,60,0.3)'; 
-            ctx.fill();
-        }
-        
-        // SELECTED INDICATOR
-        if(gameState.selectedNode===numId) {
-            ctx.beginPath();
-            ctx.arc(n.x,n.y,24,0,7);
-            ctx.fillStyle='rgba(0,112,255,0.3)';
-            ctx.fill();
-        }
-        
-        // POSSIBLE MOVE INDICATOR - Bolder Gold
-        if(possible.includes(numId)) {
-            ctx.beginPath();
-            ctx.arc(n.x,n.y,20,0,7);
-            ctx.fillStyle='rgba(255,190,0,0.7)'; // Higher opacity gold
-            ctx.fill();
-            ctx.strokeStyle='rgba(180,140,0,0.8)';
-            ctx.lineWidth=2;
-            ctx.stroke();
-        }
-        
-        if(p && p.type==='king') {
-            drawHex(n.x,n.y,20);
-            ctx.fillStyle='#fff';
-            ctx.fill();
-            ctx.strokeStyle=p.team=='blue'?'#2563EB':'#DC2626';
-            ctx.lineWidth=3;
-            ctx.stroke();
-        } else {
-            ctx.beginPath();
-            ctx.arc(n.x,n.y,16,0,7);
-            ctx.fillStyle='#fff';
-            ctx.fill();
-            ctx.strokeStyle=p?(p.team=='blue'?'#2563EB':'#DC2626'):'#ccc';
-            ctx.lineWidth=2;
-            ctx.stroke();
-        }
-        
-        if(p) {
-            ctx.fillStyle=p.team=='blue'?'#2563EB':'#DC2626';
-            ctx.font='bold 18px Arial';
-            ctx.textAlign='center';
-            let icon=p.type=='king'?'👑':p.type=='triangle'?'▲':p.type=='square'?'■':'X';
-            ctx.fillText(icon,n.x,n.y+(p.type=='king'?7:6));
-        }
+function drawBoard(){ctx.clearRect(0,0,canvas.width,canvas.height);ctx.strokeStyle='#444';ctx.lineWidth=2.5;roads.forEach(p=>{ctx.beginPath();ctx.moveTo(nodes[p[0]].x,nodes[p[0]].y);ctx.lineTo(nodes[p[1]].x,nodes[p[1]].y);ctx.stroke()});const possible=getValidMoves(gameState.selectedNode);for(let id in nodes){const n=nodes[id], p=gameState.pieces[id], numId=parseInt(id);if(gameState.lastMove&&(gameState.lastMove.from===numId||gameState.lastMove.to===numId)){ctx.beginPath();ctx.arc(n.x,n.y,24,0,7);ctx.fillStyle='rgba(60,60,60,0.3)';ctx.fill()}if(gameState.selectedNode===numId){ctx.beginPath();ctx.arc(n.x,n.y,24,0,7);ctx.fillStyle='rgba(0,112,255,0.3)';ctx.fill()}if(possible.includes(numId)){ctx.beginPath();ctx.arc(n.x,n.y,20,0,7);ctx.fillStyle='rgba(255,190,0,0.7)';ctx.fill();ctx.strokeStyle='rgba(180,140,0,0.8)';ctx.lineWidth=2;ctx.stroke()}if(p&&p.type==='king'){drawHex(n.x,n.y,20);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle=p.team=='blue'?'#2563EB':'#DC2626';ctx.lineWidth=3;ctx.stroke()}else{ctx.beginPath();ctx.arc(n.x,n.y,16,0,7);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle=p?(p.team=='blue'?'#2563EB':'#DC2626'):'#ccc';ctx.lineWidth=2;ctx.stroke()}if(p){ctx.fillStyle=p.team=='blue'?'#2563EB':'#DC2626';ctx.font='bold 18px Arial';ctx.textAlign='center';let icon=p.type=='king'?'👑':p.type=='triangle'?'▲':p.type=='square'?'■':'X';ctx.fillText(icon,n.x,n.y+(p.type=='king'?7:6))}}}
+function drawHex(x,y,size){ctx.beginPath();for(let i=0;i<6;i++){ctx.lineTo(x+size*Math.cos(i*Math.PI/3),y+size*Math.sin(i*Math.PI/3))}ctx.closePath()}
+
+function toggleUI(f=false){
+    if(f || !uiContainer.classList.contains('hidden')){
+        uiContainer.classList.add('hidden');
+        pullTab.innerText="▲ MENU";
+        canvas.height=window.innerHeight;
+    }else{
+        uiContainer.classList.remove('hidden');
+        pullTab.innerText="▼ CLOSE";
+        canvas.height=window.innerHeight-140;
     }
+    drawBoard();
 }
 
-function drawHex(x,y,size){ctx.beginPath();for(let i=0;i<6;i++){ctx.lineTo(x+size*Math.cos(i*Math.PI/3),y+size*Math.sin(i*Math.PI/3))}ctx.closePath()}
-function toggleUI(f=false){if(f||!uiContainer.classList.contains('hidden')){uiContainer.classList.add('hidden');pullTab.innerText="▲ MENU";canvas.height=window.innerHeight}else{uiContainer.classList.remove('hidden');pullTab.innerText="▼ CLOSE";canvas.height=window.innerHeight-140}drawBoard()}
 function triggerRestart(){if(myRole==='spectator')return;gameState=initialGameState();overlay.style.display='none';if(conn&&conn.open)conn.send("RESET_GAME");broadcastState();drawBoard();updateStatus()}
 function broadcastState(){if(conn&&conn.open)conn.send(gameState);spectators.forEach(s=>{if(s.open)s.send(gameState)})}
-function updateStatus(){if(gameState.gameOver)return;statusDiv.innerText=(myRole==='spectator'?"[LIVE] ":"")+gameState.turn.toUpperCase()+" TURN";statusDiv.style.color=gameState.turn==='blue'?'#2563EB':'#DC2626'}
+
+function updateStatus(){
+    if(gameState.gameOver)return;
+    statusDiv.innerText=(myRole==='spectator'?"LIVE: ":"")+gameState.turn.toUpperCase()+" TURN";
+    statusDiv.style.color=gameState.turn==='blue'?'#2563EB':'#DC2626';
+}
+
 function showWinPopup(w){winMsg.innerText=w.toUpperCase()+" WINS!";winMsg.style.color=w==='blue'?'#2563EB':'#DC2626';overlay.style.display='flex'}
 function inviteTelegramFriend(t){const l=`https://t.me/Iq17game_bot/IQ17?startapp=${t==='spectator'?'spec_'+peer.id:peer.id}`;tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(l)}&text=${encodeURIComponent(t==='spectator'?"Watch live!":"Challenge me!")}`)}
-function setupConnection(){conn.on('open',()=>{statusDiv.innerText=myRole==='spectator'?"SPECTATING":"CONNECTED!";invitePlayerBtn.style.display='none';if(myRole==='blue')broadcastState();else conn.send("SYNC")});conn.on('data',d=>{if(d==="SYNC"){broadcastState();return}if(d==="RESET_GAME"){gameState=initialGameState();overlay.style.display='none';drawBoard();updateStatus();return}gameState=d;spectators.forEach(s=>{if(s.open)s.send(gameState)});if(gameState.gameOver)showWinPopup(gameState.winner);drawBoard();updateStatus()})}
-peer.on('open',id=>{const p=tg.initDataUnsafe.start_param;if(p){if(p.startsWith('spec_')){conn=peer.connect(p.replace('spec_',''),{metadata:{type:'spectator'},reliable:true});myRole='spectator'}else{conn=peer.connect(p,{reliable:true});myRole='red'}setupConnection()}else{statusDiv.innerText="BLUE TEAM'S TURN"}});
+function setupConnection(){conn.on('open',()=>{updateStatus();invitePlayerBtn.style.display='none';if(myRole=='blue')broadcastState();else conn.send("SYNC")});conn.on('data',d=>{if(d==="SYNC"){broadcastState();return}if(d==="RESET_GAME"){gameState=initialGameState();overlay.style.display='none';drawBoard();updateStatus();return}gameState=d;spectators.forEach(s=>{if(s.open)s.send(gameState)});if(gameState.gameOver)showWinPopup(gameState.winner);drawBoard();updateStatus()})}
+
+peer.on('open',id=>{const p=tg.initDataUnsafe.start_param;if(p){if(p.startsWith('spec_')){conn=peer.connect(p.replace('spec_',''),{metadata:{type:'spectator'},reliable:true});myRole='spectator'}else{conn=peer.connect(p,{reliable:true});myRole='red'}setupConnection()}else{updateStatus()}});
 peer.on('connection',c=>{if(c.metadata&&c.metadata.type==='spectator'){spectators.push(c);c.on('open',()=>c.send(gameState))}else{conn=c;myRole='blue';setupConnection()}});
-canvas.addEventListener('touchstart',e=>{e.preventDefault();toggleUI(true);const t=e.touches[0], r=canvas.getBoundingClientRect();const x=t.clientX-r.left, y=t.clientY-r.top;for(let id in nodes){if(Math.sqrt((x-nodes[id].x)**2+(y-nodes[id].y)**2)<30){handleInteraction(parseInt(id));break}}});
+
+canvas.addEventListener('touchstart',e=>{
+    e.preventDefault();
+    toggleUI(true); // Retract menu on tap
+    const t=e.touches[0], r=canvas.getBoundingClientRect();
+    const x=t.clientX-r.left, y=t.clientY-r.top;
+    for(let id in nodes){if(Math.sqrt((x-nodes[id].x)**2+(y-nodes[id].y)**2)<30){handleInteraction(parseInt(id));break}}
+});
 drawBoard();
 </script>
 </body>
