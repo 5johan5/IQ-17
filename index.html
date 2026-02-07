@@ -97,7 +97,7 @@ const initialGameState = () => ({
 let gameState = initialGameState();
 
 function triggerCapture(x, y, type, color) {
-    activeAnimations.push({ x, y, type, color, frame: 0, max: 50 });
+    activeAnimations.push({ x, y, type, color, frame: 0, max: 45 });
 }
 
 function getValidMoves(startNode) {
@@ -131,7 +131,8 @@ function getValidMoves(startNode) {
                     const angle1 = Math.atan2(p2.y - p1.y, p2.x - p1.x), angle2 = Math.atan2(p3.y - p2.y, p3.x - p2.x);
                     let diff = Math.abs(angle1 - angle2);
                     if (diff > Math.PI) diff = 2 * Math.PI - diff;
-                    if ((diff * 180 / Math.PI) > 17) return; 
+                    // Apply the Zigzag Turn Rule: 25.61 degrees
+                    if ((diff * 180 / Math.PI) > 25.61) return; 
                 }
             }
 
@@ -187,45 +188,45 @@ function drawBoard(){
     ctx.clearRect(0,0,canvas.width,canvas.height);
     ctx.strokeStyle='#444';
     ctx.lineWidth=2.5;
-    ctx.setLineDash([]);
     roads.forEach(p=>{
         ctx.beginPath();ctx.moveTo(nodes[p[0]].x,nodes[p[0]].y);ctx.lineTo(nodes[p[1]].x,nodes[p[1]].y);ctx.stroke()
     });
 
+    const possible=getValidMoves(gameState.selectedNode);
     for(let id in nodes){
         const n=nodes[id], p=gameState.pieces[id], numId=parseInt(id);
-        const possible=getValidMoves(gameState.selectedNode);
         
-        if(gameState.selectedNode===numId || (gameState.lastMove&&(gameState.lastMove.from===numId||gameState.lastMove.to===numId))){
-            ctx.beginPath();ctx.arc(n.x,n.y,24,0,7);
-            ctx.fillStyle=gameState.selectedNode===numId?'rgba(0,112,255,0.2)':'rgba(60,60,60,0.2)';ctx.fill()
+        if(gameState.lastMove&&(gameState.lastMove.from===numId||gameState.lastMove.to===numId)){
+            ctx.beginPath();ctx.arc(n.x,n.y,24,0,7);ctx.fillStyle='rgba(60,60,60,0.3)';ctx.fill()
+        }
+        if(gameState.selectedNode===numId){
+            ctx.beginPath();ctx.arc(n.x,n.y,24,0,7);ctx.fillStyle='rgba(0,112,255,0.3)';ctx.fill()
         }
         if(possible.includes(numId)){
-            ctx.beginPath();ctx.arc(n.x,n.y,20,0,7);ctx.fillStyle='rgba(255,190,0,0.6)';ctx.fill();
+            ctx.beginPath();ctx.arc(n.x,n.y,20,0,7);ctx.fillStyle='rgba(255,190,0,0.7)';ctx.fill();
         }
-        
+
         if(p){
             ctx.save();
             const color = p.team=='blue'?'#2563EB':'#DC2626';
+            
+            // NEON GLOW
             ctx.shadowBlur = 15;
             ctx.shadowColor = color;
-            ctx.strokeStyle = color;
-            ctx.fillStyle = '#fff';
 
             if(p.type==='king'){
-                drawHex(n.x,n.y,20);ctx.fill();ctx.lineWidth=3;ctx.stroke()
+                drawHex(n.x,n.y,20); ctx.fillStyle='#fff'; ctx.fill(); ctx.strokeStyle=color; ctx.lineWidth=3; ctx.stroke();
             } else {
-                ctx.beginPath();ctx.arc(n.x,n.y,16,0,7);ctx.fill();ctx.lineWidth=2;ctx.stroke()
+                ctx.beginPath(); ctx.arc(n.x,n.y,16,0,7); ctx.fillStyle='#fff'; ctx.fill(); ctx.strokeStyle=color; ctx.lineWidth=2; ctx.stroke();
             }
+
             ctx.shadowBlur = 0;
-            ctx.fillStyle = color;
-            ctx.font = 'bold 18px Arial';
-            ctx.textAlign = 'center';
+            ctx.fillStyle=color; ctx.font='bold 18px Arial'; ctx.textAlign='center';
             let icon=p.type=='king'?'👑':p.type=='triangle'?'▲':p.type=='square'?'■':'X';
-            ctx.fillText(icon, n.x, n.y+(p.type=='king'?7:6));
+            ctx.fillText(icon,n.x,n.y+(p.type=='king'?7:6));
             ctx.restore();
         } else {
-            ctx.beginPath();ctx.arc(n.x,n.y,16,0,7);ctx.strokeStyle='#ccc';ctx.lineWidth=1;ctx.stroke();
+            ctx.beginPath(); ctx.arc(n.x,n.y,16,0,7); ctx.fillStyle='#fff'; ctx.fill(); ctx.strokeStyle='#ccc'; ctx.lineWidth=1; ctx.stroke();
         }
     }
     renderAnimations();
@@ -239,31 +240,31 @@ function renderAnimations() {
         ctx.fillStyle = anim.color;
         ctx.shadowBlur = 20;
         ctx.shadowColor = anim.color;
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 2.5;
         ctx.globalAlpha = 1 - p;
 
-        if (anim.type === 'x') {
-            for (let j = 0; j < 6; j++) {
-                const y = anim.y + (j-2.5)*10;
-                ctx.beginPath(); ctx.moveTo(anim.x - 20, y); ctx.lineTo(anim.x + 20, y); ctx.stroke();
+        if (anim.type === 'x') { // Glitch Dissolve
+            for (let j = 0; j < 5; j++) {
+                const yOff = (j - 2) * 8;
+                ctx.beginPath(); ctx.moveTo(anim.x - 15, anim.y + yOff); ctx.lineTo(anim.x + 15, anim.y + yOff); ctx.stroke();
             }
-        } else if (anim.type === 'square') {
+        } else if (anim.type === 'square') { // Decomposition
             ctx.translate(anim.x, anim.y); ctx.rotate(p * Math.PI);
-            const d = p * 45;
-            ctx.strokeRect(-12-d, -12-d, 10, 10); ctx.strokeRect(2+d, -12-d, 10, 10);
-            ctx.strokeRect(-12-d, 2+d, 10, 10); ctx.strokeRect(2+d, 2+d, 10, 10);
-        } else if (anim.type === 'triangle') {
+            const d = p * 40;
+            ctx.strokeRect(-10 - d, -10 - d, 8, 8); ctx.strokeRect(2 + d, -10 - d, 8, 8);
+            ctx.strokeRect(-10 - d, 2 + d, 8, 8); ctx.strokeRect(2 + d, 2 + d, 8, 8);
+        } else if (anim.type === 'triangle') { // Fractal Pulse
             for (let j = 0; j < 2; j++) {
-                const s = (p * 70) + (j * 20);
+                const s = (p * 60) + (j * 15);
                 ctx.save(); ctx.translate(anim.x, anim.y); ctx.rotate(p * (j === 0 ? 1 : -1));
                 ctx.beginPath(); ctx.moveTo(0, -s); ctx.lineTo(-s, s/2); ctx.lineTo(s, s/2); ctx.closePath(); ctx.stroke(); ctx.restore();
             }
-        } else if (anim.type === 'king') {
+        } else if (anim.type === 'king') { // Hex Collapse
             ctx.translate(anim.x, anim.y);
-            drawHex(0, 0, 50 * p); ctx.stroke();
+            drawHex(0, 0, 40 * p); ctx.stroke();
             ctx.beginPath(); ctx.arc(0, 0, 8 * (1 - p), 0, 7); ctx.fill();
             for(let j=0; j<8; j++){
-                ctx.rotate(Math.PI/4); ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0, 60*p); ctx.stroke();
+                ctx.rotate(Math.PI/4); ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0, 50*p); ctx.stroke();
             }
         }
         ctx.restore();
@@ -298,10 +299,8 @@ function showWinPopup(w){
     winMsg.style.color=w==='blue'?'#2563EB':'#DC2626';
     overlay.style.display='flex';
     document.getElementById('popup-controls').style.display='none';
-    // Delay buttons by 2 seconds
-    setTimeout(() => {
-        document.getElementById('popup-controls').style.display = 'block';
-    }, 2000);
+    // 2-Second Delay
+    setTimeout(() => { document.getElementById('popup-controls').style.display = 'block'; }, 2000);
 }
 
 function inviteTelegramFriend(t){const l=`https://t.me/Iq17game_bot/IQ17?startapp=${t==='spectator'?'spec_'+peer.id:peer.id}`;tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(l)}&text=${encodeURIComponent(t==='spectator'?"Watch live!":"Challenge me!")}`)}
