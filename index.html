@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -79,7 +78,7 @@ const nodes = {
 const roads = [[0,2],[0,3],[1,2],[2,3],[3,4],[1,5],[2,6],[3,7],[4,8],[5,6],[6,7],[7,8],[5,9],[6,10],[7,11],[8,12],[9,10],[10,11],[11,12],[2,5],[3,6],[6,9],[4,7],[7,10],[8,11],[9,13],[9,14],[10,14],[10,15],[11,16],[11,17],[12,18],[12,17],[13,14],[14,15],[16,17],[17,18],[13,19],[14,20],[15,21],[16,22],[17,23],[18,24],[19,20],[20,21],[22,23],[23,24],[19,30],[20,29],[21,28],[22,27],[23,26],[24,25],[30,29],[29,28],[27,26],[26,25],[15,22],[21,27],[31,30],[31,29],[32,29],[32,28],[33,27],[33,26],[34,26],[34,25],[31,32],[32,33],[33,34],[31,38],[32,37],[33,36],[34,35],[38,37],[37,36],[36,35],[38,39],[37,40],[36,41],[35,42],[39,40],[40,41],[41,42],[40,43],[41,43],[38,32],[39,37],[37,33],[40,36],[36,34],[41,35],[18,23],[23,27],[16,23],[23,25],[13,20],[20,28],[15,20],[20,30]];
 
 let peer = new Peer({ config: {'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }, { 'urls': 'turn:global.relay.metered.ca:443', 'username': '12086455af0334c526b9d3da', 'credential': 'ZxLMG6ZJX9R7oyQE' }], 'iceTransportPolicy': 'relay' } });
-let conn = null, spectators = [], myRole = null, isRedAssigned = false;
+let conn = null, spectators = [], myRole = null, isRedAssigned = false, isJustConnected = false;
 
 const initialGameState = () => ({
     turn: 'blue', selectedNode: null, lastMove: null, gameOver: false,
@@ -152,7 +151,11 @@ function getValidMoves(startNode) {
 }
 
 function handleInteraction(id) {
-    if (gameState.gameOver || myRole === 'spectator' || (myRole && gameState.turn !== myRole)) return;
+    if (gameState.gameOver || myRole === 'spectator') return;
+    const isHostSolo = (myRole === 'blue' && !isRedAssigned);
+    const isYourTurn = (myRole && gameState.turn === myRole);
+    if (!isYourTurn && !isHostSolo) return;
+
     const target = gameState.pieces[id];
     if (target && target.team === gameState.turn) {
         gameState.selectedNode = id;
@@ -185,7 +188,14 @@ function broadcastState(){if(conn&&conn.open)conn.send(gameState);spectators.for
 
 function updateStatus(){
     if(gameState.gameOver)return;
-    statusDiv.innerText=(myRole==='spectator'?"LIVE: ":"")+gameState.turn.toUpperCase()+" TURN";
+    if(isJustConnected){
+        statusDiv.innerText = "CONNECTED";
+        statusDiv.style.color = "#00AD11";
+        return;
+    }
+    let prefix = (myRole==='spectator'?"LIVE: ":"");
+    if (myRole === 'blue' && !isRedAssigned) prefix = "SOLO: ";
+    statusDiv.innerText=prefix+gameState.turn.toUpperCase()+" TURN";
     statusDiv.style.color=gameState.turn==='blue'?'#2563EB':'#DC2626';
 }
 
@@ -205,9 +215,11 @@ function setupConnection(){
     conn.on('open',()=>{
         if(myRole==='red'){ 
             conn.send("CHECK_AVAILABILITY"); 
-            invitePlayerBtn.style.display = 'none'; // Guest hides their own button
+            invitePlayerBtn.style.display = 'none'; 
+            isJustConnected = true;
+            updateStatus();
+            setTimeout(() => { isJustConnected = false; updateStatus(); }, 2000);
         }
-        updateStatus();
     });
     conn.on('data',d=>{
         if(d==="ROOM_FULL"){ showFullRoomPopup(); conn.close(); return; }
@@ -215,7 +227,10 @@ function setupConnection(){
             if(isRedAssigned){ conn.send("ROOM_FULL"); }
             else { 
                 isRedAssigned = true; 
-                invitePlayerBtn.style.display = 'none'; // Host hides button when someone joins
+                invitePlayerBtn.style.display = 'none';
+                isJustConnected = true;
+                updateStatus();
+                setTimeout(() => { isJustConnected = false; updateStatus(); }, 2000);
                 broadcastState(); 
             }
             return;
