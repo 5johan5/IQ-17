@@ -151,7 +151,15 @@ function getValidMoves(startNode) {
 }
 
 function handleInteraction(id) {
-    if (gameState.gameOver || myRole === 'spectator' || (myRole && gameState.turn !== myRole)) return;
+    if (gameState.gameOver || myRole === 'spectator') return;
+
+    // SOLO MODE LOGIC:
+    // If you are 'blue' and no 'red' player has joined, you can control both sides.
+    const isHostSolo = (myRole === 'blue' && !isRedAssigned);
+    const isYourTurn = (myRole && gameState.turn === myRole);
+
+    if (!isYourTurn && !isHostSolo) return;
+
     const target = gameState.pieces[id];
     if (target && target.team === gameState.turn) {
         gameState.selectedNode = id;
@@ -184,7 +192,10 @@ function broadcastState(){if(conn&&conn.open)conn.send(gameState);spectators.for
 
 function updateStatus(){
     if(gameState.gameOver)return;
-    statusDiv.innerText=(myRole==='spectator'?"LIVE: ":"")+gameState.turn.toUpperCase()+" TURN";
+    let prefix = (myRole==='spectator'?"LIVE: ":"");
+    // If in Solo Mode, show that explicitly in status
+    if (myRole === 'blue' && !isRedAssigned) prefix = "SOLO: ";
+    statusDiv.innerText=prefix+gameState.turn.toUpperCase()+" TURN";
     statusDiv.style.color=gameState.turn==='blue'?'#2563EB':'#DC2626';
 }
 
@@ -204,7 +215,7 @@ function setupConnection(){
     conn.on('open',()=>{
         if(myRole==='red'){ 
             conn.send("CHECK_AVAILABILITY"); 
-            invitePlayerBtn.style.display = 'none'; // Guest hides their own button
+            invitePlayerBtn.style.display = 'none'; 
         }
         updateStatus();
     });
@@ -214,7 +225,7 @@ function setupConnection(){
             if(isRedAssigned){ conn.send("ROOM_FULL"); }
             else { 
                 isRedAssigned = true; 
-                invitePlayerBtn.style.display = 'none'; // Host hides button when someone joins
+                invitePlayerBtn.style.display = 'none'; 
                 broadcastState(); 
             }
             return;
