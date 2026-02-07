@@ -80,7 +80,7 @@ const roads = [[0,2],[0,3],[1,2],[2,3],[3,4],[1,5],[2,6],[3,7],[4,8],[5,6],[6,7]
 let peer = new Peer({ config: {'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }, { 'urls': 'turn:global.relay.metered.ca:443', 'username': '12086455af0334c526b9d3da', 'credential': 'ZxLMG6ZJX9R7oyQE' }], 'iceTransportPolicy': 'relay' } });
 let conn = null, spectators = [], myRole = null, isRedAssigned = false, isJustConnected = false;
 
-// ANIMATION STATE
+// ANIMATION SYSTEM
 let activeAnimations = [];
 
 const initialGameState = () => ({
@@ -97,8 +97,8 @@ const initialGameState = () => ({
 
 let gameState = initialGameState();
 
-function triggerCaptureAnimation(x, y, type, color) {
-    activeAnimations.push({ x, y, type, color, frame: 0, maxFrames: 30 });
+function triggerCapture(x, y, type, color) {
+    activeAnimations.push({ x, y, type, color, frame: 0, max: 45 });
 }
 
 function getValidMoves(startNode) {
@@ -170,9 +170,9 @@ function handleInteraction(id) {
         if (getValidMoves(gameState.selectedNode).includes(id)) {
             const movingPiece = gameState.pieces[gameState.selectedNode];
             
-            // Trigger Animation if capture occurs
+            // Trigger Identity Animation
             if (target && target.team !== movingPiece.team) {
-                triggerCaptureAnimation(nodes[id].x, nodes[id].y, target.type, target.team === 'blue' ? '#2563EB' : '#DC2626');
+                triggerCapture(nodes[id].x, nodes[id].y, target.type, target.team === 'blue' ? '#2563EB' : '#DC2626');
             }
 
             if ((target && target.type === 'king') || (movingPiece.type === 'king' && ((movingPiece.team === 'blue' && id === 43) || (movingPiece.team === 'red' && id === 0)))) {
@@ -198,9 +198,10 @@ function drawBoard(){
         ctx.stroke()
     });
 
-    const possible=getValidMoves(gameState.selectedNode);
     for(let id in nodes){
         const n=nodes[id], p=gameState.pieces[id], numId=parseInt(id);
+        const possible=getValidMoves(gameState.selectedNode);
+        
         if(gameState.lastMove&&(gameState.lastMove.from===numId||gameState.lastMove.to===numId)){
             ctx.beginPath();ctx.arc(n.x,n.y,24,0,7);ctx.fillStyle='rgba(60,60,60,0.3)';ctx.fill()
         }
@@ -224,57 +225,72 @@ function drawBoard(){
             ctx.fillText(icon,n.x,n.y+(p.type=='king'?7:6))
         }
     }
-    drawAnimations();
+    renderAnimations();
 }
 
-function drawAnimations() {
-    activeAnimations.forEach((anim, index) => {
+function renderAnimations() {
+    activeAnimations.forEach((anim, i) => {
         ctx.save();
-        ctx.globalAlpha = 1 - (anim.frame / anim.maxFrames);
-        ctx.fillStyle = anim.color;
+        const p = anim.frame / anim.max;
         ctx.strokeStyle = anim.color;
-        const progress = anim.frame / anim.maxFrames;
+        ctx.fillStyle = anim.color;
+        ctx.lineWidth = 2;
+        ctx.globalAlpha = 1 - p;
 
-        if (anim.type === 'x') { // Spark Burst
-            for (let i = 0; i < 8; i++) {
-                const angle = (i / 8) * Math.PI * 2;
-                const dist = progress * 40;
+        if (anim.type === 'x') { // Glitch Dissolve
+            const shake = (1 - p) * 5;
+            for (let j = 0; j < 5; j++) {
+                const yOff = (j - 2) * 8;
                 ctx.beginPath();
-                ctx.arc(anim.x + Math.cos(angle) * dist, anim.y + Math.sin(angle) * dist, 3, 0, 7);
-                ctx.fill();
-            }
-        } else if (anim.type === 'square') { // Shatter
-            const offset = progress * 30;
-            ctx.fillRect(anim.x - 10 - offset, anim.y - 10 - offset, 8, 8);
-            ctx.fillRect(anim.x + 2 + offset, anim.y - 10 - offset, 8, 8);
-            ctx.fillRect(anim.x - 10 - offset, anim.y + 2 + offset, 8, 8);
-            ctx.fillRect(anim.x + 2 + offset, anim.y + 2 + offset, 8, 8);
-        } else if (anim.type === 'triangle') { // Pulse
-            ctx.lineWidth = 2;
-            for (let i = 0; i < 2; i++) {
-                const size = (progress * 50) + (i * 10);
-                ctx.beginPath();
-                ctx.moveTo(anim.x, anim.y - size);
-                ctx.lineTo(anim.x - size, anim.y + size/2);
-                ctx.lineTo(anim.x + size, anim.y + size/2);
-                ctx.closePath();
+                ctx.moveTo(anim.x - 15 + Math.random()*shake, anim.y + yOff);
+                ctx.lineTo(anim.x + 15 + Math.random()*shake, anim.y + yOff);
                 ctx.stroke();
             }
-        } else if (anim.type === 'king') { // Hex Vortex
+        } else if (anim.type === 'square') { // Square Decomposition
             ctx.translate(anim.x, anim.y);
-            ctx.rotate(progress * Math.PI * 2);
-            drawHex(0, 0, 30 * (1 - progress));
+            ctx.rotate(p * Math.PI);
+            const d = p * 40;
+            ctx.strokeRect(-10 - d, -10 - d, 8, 8);
+            ctx.strokeRect(2 + d, -10 - d, 8, 8);
+            ctx.strokeRect(-10 - d, 2 + d, 8, 8);
+            ctx.strokeRect(2 + d, 2 + d, 8, 8);
+        } else if (anim.type === 'triangle') { // Fractal Pulse
+            for (let j = 0; j < 3; j++) {
+                const s = (p * 60) + (j * 15);
+                ctx.save();
+                ctx.translate(anim.x, anim.y);
+                ctx.rotate(p * (j % 2 === 0 ? 1 : -1));
+                ctx.beginPath();
+                ctx.moveTo(0, -s);
+                ctx.lineTo(-s, s/2);
+                ctx.lineTo(s, s/2);
+                ctx.closePath();
+                ctx.stroke();
+                ctx.restore();
+            }
+        } else if (anim.type === 'king') { // Hex Collapse
+            ctx.translate(anim.x, anim.y);
+            // Wireframe expansion
+            drawHex(0, 0, 40 * p);
             ctx.stroke();
+            // Core collapse
+            ctx.beginPath();
+            ctx.arc(0, 0, 5 * (1 - p), 0, 7);
+            ctx.fill();
+            // Flare
+            ctx.lineWidth = 1;
+            for(let j=0; j<6; j++){
+                ctx.rotate(Math.PI/3);
+                ctx.moveTo(0,0); ctx.lineTo(0, 50*p); ctx.stroke();
+            }
         }
 
         ctx.restore();
         anim.frame++;
-        if (anim.frame >= anim.maxFrames) activeAnimations.splice(index, 1);
+        if (anim.frame >= anim.max) activeAnimations.splice(i, 1);
     });
 
-    if (activeAnimations.length > 0) {
-        requestAnimationFrame(drawBoard);
-    }
+    if (activeAnimations.length > 0) requestAnimationFrame(drawBoard);
 }
 
 function drawHex(x,y,size){ctx.beginPath();for(let i=0;i<6;i++){ctx.lineTo(x+size*Math.cos(i*Math.PI/3),y+size*Math.sin(i*Math.PI/3))}ctx.closePath()}
