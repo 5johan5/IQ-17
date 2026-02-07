@@ -3,83 +3,73 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IQ 17 - Pro Edition</title>
+    <title>IQ 17 - 3 Step Rule Edition</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        body { margin: 0; background: #fff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; overflow: hidden; }
-        canvas { display: block; touch-action: none; background: #ffffff; }
+        body { margin: 0; background: #fff; font-family: sans-serif; text-align: center; overflow: hidden; }
+        canvas { border-bottom: 2px solid #ccc; display: block; margin: 0 auto; touch-action: none; background: #ffffff; transition: height 0.3s ease; }
         
-        /* Floating Invite Button */
-        #invite-trigger {
-            position: absolute;
-            top: 15px;
-            left: 15px;
+        /* Retractable UI Container */
+        #ui-container { 
+            position: fixed; 
+            bottom: 0; 
+            left: 0; 
+            width: 100%; 
+            background: #fff; 
+            transition: transform 0.3s ease; 
             z-index: 50;
-            padding: 8px 16px;
-            background: #0088cc;
-            color: white;
-            border-radius: 20px;
-            font-size: 14px;
-            font-weight: bold;
-            cursor: pointer;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-            border: none;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
         }
+        #ui-container.hidden { transform: translateY(140px); }
 
-        /* Dropdown Menu */
-        #invite-dropdown {
-            position: absolute;
-            top: -200px; /* Hidden by default */
-            left: 0;
-            width: 100%;
-            background: white;
-            padding: 20px 0;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-            z-index: 100;
-            transition: top 0.3s ease-in-out;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        #invite-dropdown.active { top: 0; }
-
-        .btn { padding: 12px 24px; background: #0088cc; color: white; border: none; border-radius: 8px; cursor: pointer; margin: 5px; font-weight: bold; font-size: 15px; width: 80%; max-width: 250px;}
+        #ui { padding: 10px; background: #fff; height: 140px; box-sizing: border-box; }
         
-        #status-float {
+        /* Drop down / Toggle button */
+        #pull-tab {
             position: absolute;
-            top: 15px;
-            right: 15px;
-            font-weight: 800;
-            font-size: 14px;
-            pointer-events: none;
+            top: -30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #fff;
+            border: 1px solid #ccc;
+            border-bottom: none;
+            padding: 5px 20px;
+            border-radius: 10px 10px 0 0;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+            color: #0088cc;
         }
 
-        #game-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 200; flex-direction: column; justify-content: center; align-items: center; color: white; }
-        .popup-box { background: white; padding: 30px; border-radius: 15px; color: #333; width: 80%; max-width: 300px; text-align: center;}
+        .btn { padding: 12px 24px; background: #0088cc; color: white; border: none; border-radius: 8px; cursor: pointer; margin: 5px; font-weight: bold; font-size: 16px; }
+        #status { font-size: 18px; font-weight: bold; color: #333; margin-bottom: 5px; text-transform: uppercase; }
+        #game-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 100; flex-direction: column; justify-content: center; align-items: center; color: white; }
+        .popup-box { background: white; padding: 30px; border-radius: 15px; color: #333; width: 80%; max-width: 300px; }
     </style>
 </head>
 <body>
-
-    <button id="invite-trigger" onclick="toggleDropdown(event)">INVITE +</button>
-
-    <div id="invite-dropdown">
-        <div style="margin-bottom: 10px; font-weight: bold; color: #666;">GAME LOBBY</div>
-        <button class="btn" onclick="inviteTelegramFriend('player')">Invite Opponent</button>
-        <button class="btn" style="background:#555" onclick="inviteTelegramFriend('spectator')">Invite Spectators</button>
-        <div style="margin-top: 10px; color: #0088cc; cursor: pointer; font-size: 14px;" onclick="closeDropdown()">Close Menu</div>
-    </div>
-
-    <div id="status-float">CONNECTING...</div>
 
     <div id="game-overlay">
         <div class="popup-box">
             <h2 id="win-message">BLUE WINS!</h2>
             <button class="btn" style="background:#00AD11" onclick="triggerRestart()">Restart Game</button>
+            <button class="btn" style="background:#888" onclick="document.getElementById('game-overlay').style.display='none'">Close</button>
         </div>
     </div>
 
     <canvas id="gameCanvas"></canvas>
+
+    <div id="ui-container">
+        <div id="pull-tab" onclick="toggleUI()">▲ MENU</div>
+        <div id="ui">
+            <div id="status">Connecting...</div>
+            <div id="menu">
+                <button id="invite-player-btn" class="btn" onclick="inviteTelegramFriend('player')">Invite Friend</button>
+                <button id="invite-spec-btn" class="btn" style="background:#555" onclick="inviteTelegramFriend('spectator')">Spectators</button>
+            </div>
+        </div>
+    </div>
 
 <script>
 const tg = window.Telegram.WebApp;
@@ -87,25 +77,48 @@ tg.expand();
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-const statusDiv = document.getElementById('status-float');
-const dropdown = document.getElementById('invite-dropdown');
+const statusDiv = document.getElementById('status');
 const overlay = document.getElementById('game-overlay');
 const winMsg = document.getElementById('win-message');
+const invitePlayerBtn = document.getElementById('invite-player-btn');
+const inviteSpecBtn = document.getElementById('invite-spec-btn');
+const uiContainer = document.getElementById('ui-container');
+const pullTab = document.getElementById('pull-tab');
 
 canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+canvas.height = window.innerHeight - 140;
+
+// UI Toggle Logic
+function toggleUI(forceHide = false) {
+    if (forceHide || !uiContainer.classList.contains('hidden')) {
+        uiContainer.classList.add('hidden');
+        pullTab.innerText = "▲ MENU";
+        canvas.height = window.innerHeight;
+    } else {
+        uiContainer.classList.remove('hidden');
+        pullTab.innerText = "▼ CLOSE";
+        canvas.height = window.innerHeight - 140;
+    }
+    drawBoard();
+}
 
 const peerConfig = {
     config: {
-        'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' },
-        { 'urls': 'turn:global.relay.metered.ca:443', 'username': '12086455af0334c526b9d3da', 'credential': 'ZxLMG6ZJX9R7oyQE' }],
+        'iceServers': [
+            { 'urls': 'stun:stun.l.google.com:19302' },
+            {
+                'urls': 'turn:global.relay.metered.ca:443',
+                'username': '12086455af0334c526b9d3da', 
+                'credential': 'ZxLMG6ZJX9R7oyQE' 
+            }
+        ],
         'iceTransportPolicy': 'relay'
     }
 };
 
 let peer = new Peer(peerConfig);
 let conn = null;
-let spectators = [];
+let spectators = []; 
 let myRole = null;
 
 const initialGameState = () => ({
@@ -122,15 +135,6 @@ const initialGameState = () => ({
 
 let gameState = initialGameState();
 
-function toggleDropdown(e) {
-    e.stopPropagation();
-    dropdown.classList.toggle('active');
-}
-
-function closeDropdown() {
-    dropdown.classList.remove('active');
-}
-
 function triggerRestart() {
     if (myRole === 'spectator') return;
     gameState = initialGameState();
@@ -144,10 +148,13 @@ function triggerRestart() {
 peer.on('open', (id) => {
     const startParam = tg.initDataUnsafe.start_param;
     if (startParam) {
-        if (startParam.startsWith('spec_')) connectAsSpectator(startParam.replace('spec_', ''));
-        else connectToPeer(startParam);
+        if (startParam.startsWith('spec_')) {
+            connectAsSpectator(startParam.replace('spec_', ''));
+        } else {
+            connectToPeer(startParam);
+        }
     } else {
-        statusDiv.innerText = "BLUE'S TURN";
+        statusDiv.innerText = "BLUE TEAM'S TURN";
     }
 });
 
@@ -155,14 +162,13 @@ function inviteTelegramFriend(type) {
     const botLink = "https://t.me/Iq17game_bot/IQ17"; 
     const param = type === 'spectator' ? `spec_${peer.id}` : peer.id;
     const inviteLink = `${botLink}?startapp=${param}`;
-    const shareText = type === 'spectator' ? "Watch IQ 17 live!" : "Challenge me in IQ 17!";
+    const shareText = type === 'spectator' ? "Come watch our IQ 17 match live!" : "I challenge you to a game of IQ 17!";
     tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(shareText)}`);
-    closeDropdown();
 }
 
 function connectToPeer(peerId) {
     conn = peer.connect(peerId, { reliable: true });
-    myRole = 'red';
+    myRole = 'red'; 
     setupConnection();
 }
 
@@ -185,7 +191,9 @@ peer.on('connection', (c) => {
 
 function setupConnection() {
     conn.on('open', () => {
-        statusDiv.innerText = myRole === 'spectator' ? "SPECTATING" : "CONNECTED";
+        statusDiv.innerText = myRole === 'spectator' ? "SPECTATING" : "CONNECTED!";
+        invitePlayerBtn.style.display = 'none';
+        if (myRole === 'spectator') inviteSpecBtn.style.display = 'none';
         if (myRole === 'blue') broadcastState(); else conn.send("SYNC");
     });
     conn.on('data', (data) => {
@@ -195,9 +203,11 @@ function setupConnection() {
             overlay.style.display = 'none';
             drawBoard();
             updateStatus();
+            spectators.forEach(s => { if (s.open) s.send(gameState); });
             return;
         }
         gameState = data;
+        spectators.forEach(s => { if (s.open) s.send(gameState); });
         if (gameState.gameOver) showWinPopup(gameState.winner);
         drawBoard();
         updateStatus();
@@ -211,23 +221,64 @@ function broadcastState() {
 
 function updateStatus() {
     if (gameState.gameOver) return;
-    statusDiv.innerText = (myRole === 'spectator' ? "LIVE: " : "") + gameState.turn.toUpperCase() + "'S TURN";
+    const prefix = myRole === 'spectator' ? "[LIVE] " : "";
+    statusDiv.innerText = prefix + gameState.turn.toUpperCase() + " TEAM'S TURN";
     statusDiv.style.color = gameState.turn === 'blue' ? '#2563EB' : '#DC2626';
+}
+
+function checkWinConditions(targetId, movedPiece) {
+    const targetPiece = gameState.pieces[targetId];
+    if (targetPiece && targetPiece.type === 'king') return true;
+    if (movedPiece.type === 'king' && ((movedPiece.team === 'blue' && targetId === 43) || (movedPiece.team === 'red' && targetId === 0))) return true;
+    return false;
+}
+
+function handleInteraction(id) {
+    if (gameState.gameOver || myRole === 'spectator' || (myRole && gameState.turn !== myRole)) return;
+    const target = gameState.pieces[id];
+    if (target && target.team === gameState.turn) {
+        gameState.selectedNode = id;
+    } else if (gameState.selectedNode !== null) {
+        if (getValidMoves(gameState.selectedNode).includes(id)) {
+            const movingPiece = gameState.pieces[gameState.selectedNode];
+            if (checkWinConditions(id, movingPiece)) {
+                gameState.gameOver = true;
+                gameState.winner = gameState.turn;
+                showWinPopup(gameState.turn);
+            }
+            gameState.lastMove = {from: gameState.selectedNode, to: id};
+            gameState.pieces[id] = movingPiece; 
+            delete gameState.pieces[gameState.selectedNode];
+            gameState.turn = gameState.turn === 'blue' ? 'red' : 'blue'; 
+            gameState.selectedNode = null; 
+            broadcastState(); 
+            updateStatus();
+        } else {
+            gameState.selectedNode = null;
+        }
+    }
+    drawBoard();
+}
+
+function showWinPopup(winner) {
+    winMsg.innerText = winner.toUpperCase() + " WINS!";
+    winMsg.style.color = winner === 'blue' ? '#2563EB' : '#DC2626';
+    overlay.style.display = 'flex';
 }
 
 const scaleX = canvas.width / 400;
 const scaleY = canvas.height / 700;
 
 const nodes = {
-    0: {x: 200*scaleX, y: 100*scaleY}, 1: {x: 80*scaleX, y: 160*scaleY}, 2: {x: 160*scaleX, y: 160*scaleY}, 3: {x: 240*scaleX, y: 160*scaleY}, 4: {x: 320*scaleX, y: 160*scaleY}, 
-    5: {x: 80*scaleX, y: 230*scaleY}, 6: {x: 160*scaleX, y: 230*scaleY}, 7: {x: 240*scaleX, y: 230*scaleY}, 8: {x: 320*scaleX, y: 230*scaleY}, 
-    9: {x: 80*scaleX, y: 300*scaleY}, 10: {x: 160*scaleX, y: 300*scaleY}, 11: {x: 240*scaleX, y: 300*scaleY}, 12: {x: 320*scaleX, y: 300*scaleY}, 
-    13: {x: 25*scaleX, y: 365*scaleY}, 14: {x: 95*scaleX, y: 365*scaleY}, 15: {x: 165*scaleX, y: 365*scaleY}, 16: {x: 235*scaleX, y: 365*scaleY}, 17: {x: 305*scaleX, y: 365*scaleY}, 18: {x: 375*scaleX, y: 365*scaleY}, 
-    19: {x: 25*scaleX, y: 425*scaleY}, 20: {x: 95*scaleX, y: 425*scaleY}, 21: {x: 165*scaleX, y: 425*scaleY}, 22: {x: 235*scaleX, y: 425*scaleY}, 23: {x: 305*scaleX, y: 425*scaleY}, 24: {x: 375*scaleX, y: 425*scaleY}, 
-    30: {x: 25*scaleX, y: 485*scaleY}, 29: {x: 95*scaleX, y: 485*scaleY}, 28: {x: 165*scaleX, y: 485*scaleY}, 27: {x: 235*scaleX, y: 485*scaleY}, 26: {x: 305*scaleX, y: 485*scaleY}, 25: {x: 375*scaleX, y: 485*scaleY}, 
-    31: {x: 80*scaleX, y: 550*scaleY}, 32: {x: 160*scaleX, y: 550*scaleY}, 33: {x: 240*scaleX, y: 550*scaleY}, 34: {x: 320*scaleX, y: 550*scaleY}, 
-    38: {x: 80*scaleX, y: 620*scaleY}, 37: {x: 160*scaleX, y: 620*scaleY}, 36: {x: 240*scaleX, y: 620*scaleY}, 35: {x: 320*scaleX, y: 620*scaleY}, 
-    39: {x: 80*scaleX, y: 690*scaleY}, 40: {x: 160*scaleX, y: 690*scaleY}, 41: {x: 240*scaleX, y: 690*scaleY}, 42: {x: 320*scaleX, y: 690*scaleY}, 43: {x: 200*scaleX, y: 740*scaleY}
+    0: {x: 200*scaleX, y: 50*scaleY}, 1: {x: 80*scaleX, y: 110*scaleY}, 2: {x: 160*scaleX, y: 110*scaleY}, 3: {x: 240*scaleX, y: 110*scaleY}, 4: {x: 320*scaleX, y: 110*scaleY}, 
+    5: {x: 80*scaleX, y: 180*scaleY}, 6: {x: 160*scaleX, y: 180*scaleY}, 7: {x: 240*scaleX, y: 180*scaleY}, 8: {x: 320*scaleX, y: 180*scaleY}, 
+    9: {x: 80*scaleX, y: 250*scaleY}, 10: {x: 160*scaleX, y: 250*scaleY}, 11: {x: 240*scaleX, y: 250*scaleY}, 12: {x: 320*scaleX, y: 250*scaleY}, 
+    13: {x: 25*scaleX, y: 315*scaleY}, 14: {x: 95*scaleX, y: 315*scaleY}, 15: {x: 165*scaleX, y: 315*scaleY}, 16: {x: 235*scaleX, y: 315*scaleY}, 17: {x: 305*scaleX, y: 315*scaleY}, 18: {x: 375*scaleX, y: 315*scaleY}, 
+    19: {x: 25*scaleX, y: 375*scaleY}, 20: {x: 95*scaleX, y: 375*scaleY}, 21: {x: 165*scaleX, y: 375*scaleY}, 22: {x: 235*scaleX, y: 375*scaleY}, 23: {x: 305*scaleX, y: 375*scaleY}, 24: {x: 375*scaleX, y: 375*scaleY}, 
+    30: {x: 25*scaleX, y: 435*scaleY}, 29: {x: 95*scaleX, y: 435*scaleY}, 28: {x: 165*scaleX, y: 435*scaleY}, 27: {x: 235*scaleX, y: 435*scaleY}, 26: {x: 305*scaleX, y: 435*scaleY}, 25: {x: 375*scaleX, y: 435*scaleY}, 
+    31: {x: 80*scaleX, y: 500*scaleY}, 32: {x: 160*scaleX, y: 500*scaleY}, 33: {x: 240*scaleX, y: 500*scaleY}, 34: {x: 320*scaleX, y: 500*scaleY}, 
+    38: {x: 80*scaleX, y: 570*scaleY}, 37: {x: 160*scaleX, y: 570*scaleY}, 36: {x: 240*scaleX, y: 570*scaleY}, 35: {x: 320*scaleX, y: 570*scaleY}, 
+    39: {x: 80*scaleX, y: 640*scaleY}, 40: {x: 160*scaleX, y: 640*scaleY}, 41: {x: 240*scaleX, y: 640*scaleY}, 42: {x: 320*scaleX, y: 640*scaleY}, 43: {x: 200*scaleX, y: 690*scaleY}
 };
 
 const roads = [[0,2],[0,3],[1,2],[2,3],[3,4],[1,5],[2,6],[3,7],[4,8],[5,6],[6,7],[7,8],[5,9],[6,10],[7,11],[8,12],[9,10],[10,11],[11,12],[2,5],[3,6],[6,9],[4,7],[7,10],[8,11],[9,13],[9,14],[10,14],[10,15],[11,16],[11,17],[12,18],[12,17],[13,14],[14,15],[16,17],[17,18],[13,19],[14,20],[15,21],[16,22],[17,23],[18,24],[19,20],[20,21],[22,23],[23,24],[19,30],[20,29],[21,28],[22,27],[23,26],[24,25],[30,29],[29,28],[27,26],[26,25],[15,22],[21,27],[31,30],[31,29],[32,29],[32,28],[33,27],[33,26],[34,26],[34,25],[31,32],[32,33],[33,34],[31,38],[32,37],[33,36],[34,35],[38,37],[37,36],[36,35],[38,39],[37,40],[36,41],[35,42],[39,40],[40,41],[41,42],[40,43],[41,43],[38,32],[39,37],[37,33],[40,36],[36,34],[41,35],[18,23],[23,27],[16,23],[23,25],[13,20],[20,28],[15,20],[20,30]];
@@ -245,91 +296,56 @@ function getValidMoves(startNode) {
     while (queue.length > 0) {
         let current = queue.shift();
         if (current.dist >= maxDist) continue;
+
         let neighbors = roads.filter(r => r.includes(current.id)).map(r => r[0] === current.id ? r[1] : r[0]);
 
         neighbors.forEach(neighbor => {
             if (isSpecialPiece && current.lastNode !== null) {
-                const p1 = nodes[current.lastNode]; const p2 = nodes[current.id]; const p3 = nodes[neighbor];
+                const p1 = nodes[current.lastNode];
+                const p2 = nodes[current.id];
+                const p3 = nodes[neighbor];
                 const angle1 = Math.atan2(p2.y - p1.y, p2.x - p1.x);
                 const angle2 = Math.atan2(p3.y - p2.y, p3.x - p2.x);
                 let diff = Math.abs(angle1 - angle2);
                 if (diff > Math.PI) diff = 2 * Math.PI - diff;
-                if (diff * (180 / Math.PI) > 25.61) return; 
+                const turnInDegrees = diff * (180 / Math.PI);
+                if (turnInDegrees > 25.61) return; 
             }
+
             if (!visited.has(neighbor)) {
                 const targetPiece = gameState.pieces[neighbor];
                 if (piece.type === 'x') {
                     const isBackward = piece.team === 'blue' ? nodes[neighbor].y < nodes[startNode].y : nodes[neighbor].y > nodes[startNode].y;
-                    if (isBackward && !targetPiece) return;
+                    const isBridge = (startNode == 15 && neighbor == 22) || (startNode == 22 && neighbor == 15) || (startNode == 21 && neighbor == 27) || (startNode == 27 && neighbor == 21);
+                    if (isBackward && (!isBridge || !targetPiece || targetPiece.team === piece.team)) return;
+                    if (targetPiece && targetPiece.type === 'square') return;
                 }
+
                 if (targetPiece) {
                     if (targetPiece.team !== piece.team) valid.push(neighbor);
+                    visited.set(neighbor, current.dist + 1);
                 } else {
                     valid.push(neighbor);
+                    visited.set(neighbor, current.dist + 1);
                     queue.push({id: neighbor, dist: current.dist + 1, lastNode: current.id});
                 }
-                visited.set(neighbor, current.dist + 1);
             }
         });
     }
     return [...new Set(valid)];
 }
 
-function handleInteraction(id) {
-    if (gameState.gameOver || myRole === 'spectator' || (myRole && gameState.turn !== myRole)) return;
-    const target = gameState.pieces[id];
-    if (target && target.team === gameState.turn) {
-        gameState.selectedNode = id;
-    } else if (gameState.selectedNode !== null) {
-        if (getValidMoves(gameState.selectedNode).includes(id)) {
-            const movingPiece = gameState.pieces[gameState.selectedNode];
-            const targetPiece = gameState.pieces[id];
-            if (targetPiece && targetPiece.type === 'king') { gameState.gameOver = true; gameState.winner = gameState.turn; }
-            gameState.lastMove = {from: gameState.selectedNode, to: id};
-            gameState.pieces[id] = movingPiece;
-            delete gameState.pieces[gameState.selectedNode];
-            gameState.turn = gameState.turn === 'blue' ? 'red' : 'blue';
-            gameState.selectedNode = null;
-            broadcastState();
-            updateStatus();
-        } else { gameState.selectedNode = null; }
-    }
-    drawBoard();
-}
-
-function showWinPopup(winner) {
-    winMsg.innerText = winner.toUpperCase() + " WINS!";
-    winMsg.style.color = winner === 'blue' ? '#2563EB' : '#DC2626';
-    overlay.style.display = 'flex';
-}
-
-function drawBoard() {
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    ctx.strokeStyle='#eee'; ctx.lineWidth=2;
-    roads.forEach(p=>{ctx.beginPath();ctx.moveTo(nodes[p[0]].x,nodes[p[0]].y);ctx.lineTo(nodes[p[1]].x,nodes[p[1]].y);ctx.stroke()});
-    const possible=getValidMoves(gameState.selectedNode);
-    for(let id in nodes){
-        const n=nodes[id]; const p=gameState.pieces[id]; const numId=parseInt(id);
-        if(possible.includes(numId)){ctx.beginPath();ctx.arc(n.x,n.y,12,0,7);ctx.fillStyle='#FFD700';ctx.fill()}
-        if(p){
-            ctx.beginPath();ctx.arc(n.x,n.y,18,0,7);ctx.fillStyle=p.team=='blue'?'#2563EB':'#DC2626';ctx.fill();
-            ctx.fillStyle='#fff'; ctx.font='bold 14px Arial'; ctx.textAlign='center';
-            let icon=p.type=='king'?'K':p.type=='triangle'?'T':p.type=='square'?'S':'X';
-            ctx.fillText(icon,n.x,n.y+5);
-        } else {
-            ctx.beginPath();ctx.arc(n.x,n.y,4,0,7);ctx.fillStyle='#ccc';ctx.fill();
-        }
-    }
-}
+function drawHex(x,y,size){ctx.beginPath();for(let i=0;i<6;i++){ctx.lineTo(x+size*Math.cos(i*Math.PI/3),y+size*Math.sin(i*Math.PI/3))}ctx.closePath()}
+function drawBoard(){ctx.clearRect(0,0,canvas.width,canvas.height);ctx.strokeStyle='#444';ctx.lineWidth=2.5;roads.forEach(p=>{ctx.beginPath();ctx.moveTo(nodes[p[0]].x,nodes[p[0]].y);ctx.lineTo(nodes[p[1]].x,nodes[p[1]].y);ctx.stroke()});const possible=getValidMoves(gameState.selectedNode);for(let id in nodes){const n=nodes[id];const p=gameState.pieces[id];const numId=parseInt(id);if(gameState.lastMove&&(gameState.lastMove.from===numId||gameState.lastMove.to===numId)){ctx.beginPath();ctx.arc(n.x,n.y,22,0,7);ctx.fillStyle='rgba(0,0,0,0.1)';ctx.fill()}if(gameState.selectedNode===numId){ctx.beginPath();ctx.arc(n.x,n.y,22,0,7);ctx.fillStyle='rgba(0,112,255,0.2)';ctx.fill()}if(possible.includes(numId)){ctx.beginPath();ctx.arc(n.x,n.y,18,0,7);ctx.fillStyle='rgba(255,215,0,0.5)';ctx.fill()}if(p&&p.type==='king'){drawHex(n.x,n.y,20);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle=p.team=='blue'?'#2563EB':'#DC2626';ctx.lineWidth=3;ctx.stroke()}else{ctx.beginPath();ctx.arc(n.x,n.y,16,0,7);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle=p?(p.team=='blue'?'#2563EB':'#DC2626'):'#ccc';ctx.lineWidth=2;ctx.stroke()}if(p){ctx.fillStyle=p.team=='blue'?'#2563EB':'#DC2626';ctx.font='bold 18px Arial';ctx.textAlign='center';let icon=p.type=='king'?'👑':p.type=='triangle'?'▲':p.type=='square'?'■':'X';ctx.fillText(icon,n.x,n.y+(p.type=='king'?7:6))}}}
 
 canvas.addEventListener('touchstart',e=>{
     e.preventDefault();
-    closeDropdown(); // Retract dropdown on click
-    const touch=e.touches[0]; const rect=canvas.getBoundingClientRect();
-    const x=touch.clientX-rect.left; const y=touch.clientY-rect.top;
-    for(let id in nodes){
-        if(Math.sqrt((x-nodes[id].x)**2+(y-nodes[id].y)**2)<30){handleInteraction(parseInt(id));break}
-    }
+    toggleUI(true); // Automatically hide menu when user clicks the board
+    const touch=e.touches[0];
+    const rect=canvas.getBoundingClientRect();
+    const x=touch.clientX-rect.left;
+    const y=touch.clientY-rect.top;
+    for(let id in nodes){if(Math.sqrt((x-nodes[id].x)**2+(y-nodes[id].y)**2)<30){handleInteraction(parseInt(id));break}}
 });
 
 drawBoard();
