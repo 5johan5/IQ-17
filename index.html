@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IQ 17 - 19 Degree Rule</title>
+    <title>IQ 17 - 17 Degree Rule</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
@@ -114,13 +114,13 @@ function getValidMoves(startNode) {
                     if (isEnemyChamber) { if (!targetPiece || targetPiece.team === piece.team) return; } else { return; }
                 } else { if (targetPiece && targetPiece.team === piece.team) return; }
             }
-            // Zigzag Angle Rule updated to 19 degrees
+            // Zigzag Angle Rule updated to 17 degrees
             if (isSpecialPiece && current.lastNode !== null) {
                 const p1 = nodes[current.lastNode], p2 = nodes[current.id], p3 = nodes[neighbor];
                 const angle1 = Math.atan2(p2.y - p1.y, p2.x - p1.x), angle2 = Math.atan2(p3.y - p2.y, p3.x - p2.x);
                 let diff = Math.abs(angle1 - angle2);
                 if (diff > Math.PI) diff = 2 * Math.PI - diff;
-                if ((diff * 180 / Math.PI) > 19) return; 
+                if ((diff * 180 / Math.PI) > 17) return; 
             }
             if (!visited.has(neighbor)) {
                 const targetPiece = gameState.pieces[neighbor];
