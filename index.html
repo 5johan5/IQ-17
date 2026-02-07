@@ -16,18 +16,18 @@
         #status { position: absolute; top: -65px; left: 0; width: 100%; font-size: 22px; font-weight: 900; text-transform: uppercase; pointer-events: none; text-shadow: 0px 0px 5px rgba(255,255,255,0.8); }
         .btn { padding: 12px 24px; background: #0088cc; color: white; border: none; border-radius: 8px; cursor: pointer; margin: 5px; font-weight: bold; font-size: 16px; }
         #game-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 100; flex-direction: column; justify-content: center; align-items: center; color: white; }
-        .popup-box { background: white; padding: 30px; border-radius: 15px; color: #333; width: 80%; max-width: 300px; }
-        #popup-controls { display: none; margin-top: 20px; }
+        .popup-box { background: white; padding: 30px; border-radius: 15px; color: #333; width: 80%; max-width: 300px; text-align: center; }
+        #end-game-content { display: none; }
     </style>
 </head>
 <body>
 
     <div id="game-overlay">
         <div class="popup-box">
-            <h2 id="win-message">BLUE WINS!</h2>
-            <div id="popup-controls">
-                <button class="btn" style="background:#00AD11" onclick="triggerRestart()">Restart</button>
-                <button class="btn" style="background:#888" onclick="document.getElementById('game-overlay').style.display='none'">Close</button>
+            <div id="end-game-content">
+                <h2 id="win-message" style="margin-top:0;">TEAM WINS</h2>
+                <button class="btn" style="background:#00AD11; width: 100%;" onclick="triggerRestart()">Restart Game</button>
+                <button class="btn" style="background:#888; width: 100%;" onclick="document.getElementById('game-overlay').style.display='none'">Close</button>
             </div>
         </div>
     </div>
@@ -54,6 +54,7 @@ const ctx = canvas.getContext('2d');
 const statusDiv = document.getElementById('status');
 const overlay = document.getElementById('game-overlay');
 const winMsg = document.getElementById('win-message');
+const endGameContent = document.getElementById('end-game-content');
 const uiContainer = document.getElementById('ui-container');
 const pullTab = document.getElementById('pull-tab');
 const invitePlayerBtn = document.getElementById('invite-player-btn');
@@ -97,7 +98,7 @@ const initialGameState = () => ({
 let gameState = initialGameState();
 
 function triggerCapture(x, y, type, color) {
-    activeAnimations.push({ x, y, type, color, frame: 0, max: 45 });
+    activeAnimations.push({ x, y, type, color, frame: 0, max: 50 });
 }
 
 function getValidMoves(startNode) {
@@ -131,7 +132,7 @@ function getValidMoves(startNode) {
                     const angle1 = Math.atan2(p2.y - p1.y, p2.x - p1.x), angle2 = Math.atan2(p3.y - p2.y, p3.x - p2.x);
                     let diff = Math.abs(angle1 - angle2);
                     if (diff > Math.PI) diff = 2 * Math.PI - diff;
-                    // Apply the Zigzag Turn Rule: 25.61 degrees
+                    // Applying your custom zigzag rule: 25.61 degrees
                     if ((diff * 180 / Math.PI) > 25.61) return; 
                 }
             }
@@ -186,8 +187,7 @@ function handleInteraction(id) {
 
 function drawBoard(){
     ctx.clearRect(0,0,canvas.width,canvas.height);
-    ctx.strokeStyle='#444';
-    ctx.lineWidth=2.5;
+    ctx.strokeStyle='#444'; ctx.lineWidth=2.5;
     roads.forEach(p=>{
         ctx.beginPath();ctx.moveTo(nodes[p[0]].x,nodes[p[0]].y);ctx.lineTo(nodes[p[1]].x,nodes[p[1]].y);ctx.stroke()
     });
@@ -195,38 +195,25 @@ function drawBoard(){
     const possible=getValidMoves(gameState.selectedNode);
     for(let id in nodes){
         const n=nodes[id], p=gameState.pieces[id], numId=parseInt(id);
-        
-        if(gameState.lastMove&&(gameState.lastMove.from===numId||gameState.lastMove.to===numId)){
-            ctx.beginPath();ctx.arc(n.x,n.y,24,0,7);ctx.fillStyle='rgba(60,60,60,0.3)';ctx.fill()
+        if(gameState.selectedNode===numId || (gameState.lastMove&&(gameState.lastMove.from===numId||gameState.lastMove.to===numId))){
+            ctx.beginPath();ctx.arc(n.x,n.y,24,0,7);ctx.fillStyle='rgba(0,112,255,0.2)';ctx.fill()
         }
-        if(gameState.selectedNode===numId){
-            ctx.beginPath();ctx.arc(n.x,n.y,24,0,7);ctx.fillStyle='rgba(0,112,255,0.3)';ctx.fill()
-        }
-        if(possible.includes(numId)){
-            ctx.beginPath();ctx.arc(n.x,n.y,20,0,7);ctx.fillStyle='rgba(255,190,0,0.7)';ctx.fill();
-        }
+        if(possible.includes(numId)){ ctx.beginPath();ctx.arc(n.x,n.y,20,0,7);ctx.fillStyle='rgba(255,190,0,0.6)';ctx.fill(); }
+
+        // --- BLACK OUTERLINE FOR ALL NODES ---
+        ctx.beginPath(); ctx.arc(n.x, n.y, 16, 0, 7); ctx.fillStyle='#fff'; ctx.fill(); 
+        ctx.strokeStyle='#000'; ctx.lineWidth=1.5; ctx.stroke();
 
         if(p){
             ctx.save();
             const color = p.team=='blue'?'#2563EB':'#DC2626';
-            
-            // NEON GLOW
-            ctx.shadowBlur = 15;
-            ctx.shadowColor = color;
-
-            if(p.type==='king'){
-                drawHex(n.x,n.y,20); ctx.fillStyle='#fff'; ctx.fill(); ctx.strokeStyle=color; ctx.lineWidth=3; ctx.stroke();
-            } else {
-                ctx.beginPath(); ctx.arc(n.x,n.y,16,0,7); ctx.fillStyle='#fff'; ctx.fill(); ctx.strokeStyle=color; ctx.lineWidth=2; ctx.stroke();
-            }
-
-            ctx.shadowBlur = 0;
-            ctx.fillStyle=color; ctx.font='bold 18px Arial'; ctx.textAlign='center';
+            ctx.shadowBlur = 15; ctx.shadowColor = color;
+            if(p.type==='king'){ drawHex(n.x,n.y,20); ctx.fillStyle='#fff'; ctx.fill(); ctx.strokeStyle=color; ctx.lineWidth=3; ctx.stroke(); } 
+            else { ctx.beginPath(); ctx.arc(n.x,n.y,16,0,7); ctx.fillStyle='#fff'; ctx.fill(); ctx.strokeStyle=color; ctx.lineWidth=2; ctx.stroke(); }
+            ctx.shadowBlur = 0; ctx.fillStyle=color; ctx.font='bold 18px Arial'; ctx.textAlign='center';
             let icon=p.type=='king'?'👑':p.type=='triangle'?'▲':p.type=='square'?'■':'X';
             ctx.fillText(icon,n.x,n.y+(p.type=='king'?7:6));
             ctx.restore();
-        } else {
-            ctx.beginPath(); ctx.arc(n.x,n.y,16,0,7); ctx.fillStyle='#fff'; ctx.fill(); ctx.strokeStyle='#ccc'; ctx.lineWidth=1; ctx.stroke();
         }
     }
     renderAnimations();
@@ -236,39 +223,27 @@ function renderAnimations() {
     activeAnimations.forEach((anim, i) => {
         ctx.save();
         const p = anim.frame / anim.max;
-        ctx.strokeStyle = anim.color;
-        ctx.fillStyle = anim.color;
-        ctx.shadowBlur = 20;
-        ctx.shadowColor = anim.color;
-        ctx.lineWidth = 2.5;
-        ctx.globalAlpha = 1 - p;
-
-        if (anim.type === 'x') { // Glitch Dissolve
+        ctx.strokeStyle = anim.color; ctx.fillStyle = anim.color; ctx.shadowBlur = 20; ctx.shadowColor = anim.color; ctx.lineWidth = 2.5; ctx.globalAlpha = 1 - p;
+        if (anim.type === 'x') {
             for (let j = 0; j < 5; j++) {
                 const yOff = (j - 2) * 8;
                 ctx.beginPath(); ctx.moveTo(anim.x - 15, anim.y + yOff); ctx.lineTo(anim.x + 15, anim.y + yOff); ctx.stroke();
             }
-        } else if (anim.type === 'square') { // Decomposition
+        } else if (anim.type === 'square') {
             ctx.translate(anim.x, anim.y); ctx.rotate(p * Math.PI);
-            const d = p * 40;
-            ctx.strokeRect(-10 - d, -10 - d, 8, 8); ctx.strokeRect(2 + d, -10 - d, 8, 8);
-            ctx.strokeRect(-10 - d, 2 + d, 8, 8); ctx.strokeRect(2 + d, 2 + d, 8, 8);
-        } else if (anim.type === 'triangle') { // Fractal Pulse
+            const d = p * 40; ctx.strokeRect(-10-d,-10-d,8,8); ctx.strokeRect(2+d,-10-d,8,8); ctx.strokeRect(-10-d,2+d,8,8); ctx.strokeRect(2+d,2+d,8,8);
+        } else if (anim.type === 'triangle') {
             for (let j = 0; j < 2; j++) {
                 const s = (p * 60) + (j * 15);
                 ctx.save(); ctx.translate(anim.x, anim.y); ctx.rotate(p * (j === 0 ? 1 : -1));
                 ctx.beginPath(); ctx.moveTo(0, -s); ctx.lineTo(-s, s/2); ctx.lineTo(s, s/2); ctx.closePath(); ctx.stroke(); ctx.restore();
             }
-        } else if (anim.type === 'king') { // Hex Collapse
-            ctx.translate(anim.x, anim.y);
-            drawHex(0, 0, 40 * p); ctx.stroke();
+        } else if (anim.type === 'king') {
+            ctx.translate(anim.x, anim.y); drawHex(0, 0, 40 * p); ctx.stroke();
             ctx.beginPath(); ctx.arc(0, 0, 8 * (1 - p), 0, 7); ctx.fill();
-            for(let j=0; j<8; j++){
-                ctx.rotate(Math.PI/4); ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0, 50*p); ctx.stroke();
-            }
+            for(let j=0; j<8; j++){ ctx.rotate(Math.PI/4); ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0, 60*p); ctx.stroke(); }
         }
-        ctx.restore();
-        anim.frame++;
+        ctx.restore(); anim.frame++;
         if (anim.frame >= anim.max) activeAnimations.splice(i, 1);
     });
     if (activeAnimations.length > 0) requestAnimationFrame(drawBoard);
@@ -282,7 +257,7 @@ function toggleUI(f=false){
     drawBoard();
 }
 
-function triggerRestart(){if(myRole==='spectator')return;gameState=initialGameState();overlay.style.display='none';document.getElementById('popup-controls').style.display='none';if(conn&&conn.open)conn.send("RESET_GAME");broadcastState();drawBoard();updateStatus()}
+function triggerRestart(){if(myRole==='spectator')return;gameState=initialGameState();overlay.style.display='none';endGameContent.style.display='none';if(conn&&conn.open)conn.send("RESET_GAME");broadcastState();drawBoard();updateStatus()}
 function broadcastState(){if(conn&&conn.open)conn.send(gameState);spectators.forEach(s=>{if(s.open)s.send(gameState)})}
 
 function updateStatus(){
@@ -295,41 +270,31 @@ function updateStatus(){
 }
 
 function showWinPopup(w){
-    winMsg.innerText=w.toUpperCase()+" WINS!";
+    winMsg.innerText=w.toUpperCase()+" TEAM WINS";
     winMsg.style.color=w==='blue'?'#2563EB':'#DC2626';
-    overlay.style.display='flex';
-    document.getElementById('popup-controls').style.display='none';
-    // 2-Second Delay
-    setTimeout(() => { document.getElementById('popup-controls').style.display = 'block'; }, 2000);
+    overlay.style.display = 'none';
+    endGameContent.style.display = 'none';
+    setTimeout(() => {
+        overlay.style.display = 'flex';
+        endGameContent.style.display = 'block';
+    }, 2000);
 }
 
 function inviteTelegramFriend(t){const l=`https://t.me/Iq17game_bot/IQ17?startapp=${t==='spectator'?'spec_'+peer.id:peer.id}`;tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(l)}&text=${encodeURIComponent(t==='spectator'?"Watch live!":"Challenge me!")}`)}
 
 function setupConnection(){
     conn.on('open',()=>{
-        if(myRole==='red'){ 
-            conn.send("CHECK_AVAILABILITY"); 
-            invitePlayerBtn.style.display = 'none'; 
-            isJustConnected = true; updateStatus();
-            setTimeout(() => { isJustConnected = false; updateStatus(); }, 2000);
-        }
+        if(myRole==='red'){ conn.send("CHECK_AVAILABILITY"); invitePlayerBtn.style.display = 'none'; isJustConnected = true; updateStatus(); setTimeout(() => { isJustConnected = false; updateStatus(); }, 2000); }
     });
     conn.on('data',d=>{
-        if(d==="ROOM_FULL"){ overlay.style.display='flex'; winMsg.innerText="ROOM FULL"; return; }
+        if(d==="ROOM_FULL"){ overlay.style.display='flex'; winMsg.innerText="ROOM FULL"; endGameContent.style.display='block'; return; }
         if(d==="CHECK_AVAILABILITY"){
             if(isRedAssigned){ conn.send("ROOM_FULL"); }
-            else { 
-                isRedAssigned = true; invitePlayerBtn.style.display = 'none';
-                isJustConnected = true; updateStatus();
-                setTimeout(() => { isJustConnected = false; updateStatus(); }, 2000);
-                broadcastState(); 
-            }
+            else { isRedAssigned = true; invitePlayerBtn.style.display = 'none'; isJustConnected = true; updateStatus(); setTimeout(() => { isJustConnected = false; updateStatus(); }, 2000); broadcastState(); }
             return;
         }
-        if(d==="RESET_GAME"){ gameState=initialGameState(); overlay.style.display='none'; drawBoard(); updateStatus(); return; }
-        gameState=d;
-        if(gameState.gameOver)showWinPopup(gameState.winner);
-        drawBoard(); updateStatus();
+        if(d==="RESET_GAME"){ gameState=initialGameState(); overlay.style.display='none'; endGameContent.style.display='none'; drawBoard(); updateStatus(); return; }
+        gameState=d; if(gameState.gameOver)showWinPopup(gameState.winner); drawBoard(); updateStatus();
     });
 }
 
