@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IQ 17 - Secure Room</title>
+    <title>IQ 17 - Private Match</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
@@ -186,6 +186,8 @@ function updateStatus(){
     if(gameState.gameOver)return;
     statusDiv.innerText=(myRole==='spectator'?"LIVE: ":"")+gameState.turn.toUpperCase()+" TURN";
     statusDiv.style.color=gameState.turn==='blue'?'#2563EB':'#DC2626';
+    // Hide invite button if player is already assigned
+    if(isRedAssigned) { invitePlayerBtn.style.display = 'none'; }
 }
 
 function showWinPopup(w){winMsg.innerText=w.toUpperCase()+" WINS!";winMsg.style.color=w==='blue'?'#2563EB':'#DC2626';document.getElementById('popup-controls').style.display='block';overlay.style.display='flex'}
@@ -209,7 +211,11 @@ function setupConnection(){
         if(d==="ROOM_FULL"){ showFullRoomPopup(); conn.close(); return; }
         if(d==="CHECK_AVAILABILITY"){
             if(isRedAssigned){ conn.send("ROOM_FULL"); }
-            else { isRedAssigned = true; broadcastState(); }
+            else { 
+                isRedAssigned = true; 
+                invitePlayerBtn.style.display = 'none'; // Remove button on host side
+                broadcastState(); 
+            }
             return;
         }
         if(d==="SYNC"){ broadcastState(); return; }
