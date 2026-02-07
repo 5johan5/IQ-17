@@ -132,7 +132,6 @@ function getValidMoves(startNode) {
                     const angle1 = Math.atan2(p2.y - p1.y, p2.x - p1.x), angle2 = Math.atan2(p3.y - p2.y, p3.x - p2.x);
                     let diff = Math.abs(angle1 - angle2);
                     if (diff > Math.PI) diff = 2 * Math.PI - diff;
-                    // Applying your custom zigzag rule: 25.61 degrees
                     if ((diff * 180 / Math.PI) > 25.61) return; 
                 }
             }
@@ -200,14 +199,15 @@ function drawBoard(){
         }
         if(possible.includes(numId)){ ctx.beginPath();ctx.arc(n.x,n.y,20,0,7);ctx.fillStyle='rgba(255,190,0,0.6)';ctx.fill(); }
 
-        // --- BLACK OUTERLINE FOR ALL NODES ---
+        // GREY NODE OUTLINES
         ctx.beginPath(); ctx.arc(n.x, n.y, 16, 0, 7); ctx.fillStyle='#fff'; ctx.fill(); 
-        ctx.strokeStyle='#000'; ctx.lineWidth=1.5; ctx.stroke();
+        ctx.strokeStyle='#888'; ctx.lineWidth=1.5; ctx.stroke();
 
         if(p){
             ctx.save();
             const color = p.team=='blue'?'#2563EB':'#DC2626';
-            ctx.shadowBlur = 15; ctx.shadowColor = color;
+            // SUBTLE GLOW (Reduced shadowBlur)
+            ctx.shadowBlur = 8; ctx.shadowColor = color;
             if(p.type==='king'){ drawHex(n.x,n.y,20); ctx.fillStyle='#fff'; ctx.fill(); ctx.strokeStyle=color; ctx.lineWidth=3; ctx.stroke(); } 
             else { ctx.beginPath(); ctx.arc(n.x,n.y,16,0,7); ctx.fillStyle='#fff'; ctx.fill(); ctx.strokeStyle=color; ctx.lineWidth=2; ctx.stroke(); }
             ctx.shadowBlur = 0; ctx.fillStyle=color; ctx.font='bold 18px Arial'; ctx.textAlign='center';
@@ -223,7 +223,7 @@ function renderAnimations() {
     activeAnimations.forEach((anim, i) => {
         ctx.save();
         const p = anim.frame / anim.max;
-        ctx.strokeStyle = anim.color; ctx.fillStyle = anim.color; ctx.shadowBlur = 20; ctx.shadowColor = anim.color; ctx.lineWidth = 2.5; ctx.globalAlpha = 1 - p;
+        ctx.strokeStyle = anim.color; ctx.fillStyle = anim.color; ctx.shadowBlur = 12; ctx.shadowColor = anim.color; ctx.lineWidth = 2.5; ctx.globalAlpha = 1 - p;
         if (anim.type === 'x') {
             for (let j = 0; j < 5; j++) {
                 const yOff = (j - 2) * 8;
