@@ -25,7 +25,6 @@
         .btn { padding: 10px 18px; background: #0088cc; color: white; border: none; border-radius: 8px; cursor: pointer; margin: 3px; font-weight: bold; font-size: 14px; }
         #game-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 100; flex-direction: column; justify-content: center; align-items: center; color: white; }
         .popup-box { background: white; padding: 30px; border-radius: 15px; color: #333; width: 80%; max-width: 300px; }
-        
         #scoreboard { position: absolute; top: 5px; width: 100%; padding: 0 5px; box-sizing: border-box; pointer-events: none; z-index: 60; display: flex; justify-content: space-between; }
         .score-pill { background: rgba(255, 255, 255, 0.9); padding: 4px 8px; border-radius: 8px; border: 1.5px solid #ccc; width: 100px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; flex-direction: column; align-items: center; }
         .blue-side { border-color: #2563EB; color: #2563EB; }
@@ -33,7 +32,6 @@
         .p-name { font-weight: 800; font-size: 10px; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; }
         .p-iq { font-size: 9px; font-weight: bold; }
         .p-rank { font-size: 8px; font-style: italic; opacity: 0.9; }
-        
         #iq-change-display { font-size: 18px; font-weight: bold; margin: 15px 0; display: block; }
     </style>
 </head>
@@ -254,11 +252,17 @@ function getValidMoves(startNode) {
                 } else { if (targetPiece && targetPiece.team === piece.team) return; }
             }
             if (isSpecialPiece && current.lastNode !== null) {
-                const p1 = nodes[current.lastNode], p2 = nodes[current.id], p3 = nodes[neighbor];
-                const angle1 = Math.atan2(p2.y - p1.y, p2.x - p1.x), angle2 = Math.atan2(p3.y - p2.y, p3.x - p2.x);
-                let diff = Math.abs(angle1 - angle2);
-                if (diff > Math.PI) diff = 2 * Math.PI - diff;
-                if ((diff * 180 / Math.PI) > 17) return; // Zigzag Turn Rule Updated to 17 degrees
+                // SPECIAL EXCEPTIONS FOR NODES 38->28 AND 8->16
+                const isException38to28 = (current.id === 38 && neighbor === 28);
+                const isException8to16 = (current.id === 8 && neighbor === 16);
+                
+                if (!isException38to28 && !isException8to16) {
+                    const p1 = nodes[current.lastNode], p2 = nodes[current.id], p3 = nodes[neighbor];
+                    const angle1 = Math.atan2(p2.y - p1.y, p2.x - p1.x), angle2 = Math.atan2(p3.y - p2.y, p3.x - p2.x);
+                    let diff = Math.abs(angle1 - angle2);
+                    if (diff > Math.PI) diff = 2 * Math.PI - diff;
+                    if ((diff * 180 / Math.PI) > 17) return; // Zigzag Turn Rule
+                }
             }
             if (!visited.has(neighbor)) {
                 const targetPiece = gameState.pieces[neighbor];
