@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IQ 17 - Special Paths</title>
+    <title>IQ 17 - Spectator Sync</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
@@ -148,6 +148,7 @@ function handleSurrender() {
         if (ok && conn && conn.open) {
             gameState.gameOver = true;
             gameState.winner = (myRole === 'blue' ? 'red' : 'blue');
+            broadcastState(); // NOTIFY SPECTATORS
             conn.send({ type: 'SURRENDER', winner: gameState.winner });
             updateScore(false);
             showWinPopup(gameState.winner);
@@ -242,10 +243,8 @@ function getValidMoves(startNode) {
         if (current.dist >= maxDist) continue;
         let neighbors = roads.filter(r => r.includes(current.id)).map(r => r[0] === current.id ? r[1] : r[0]);
         neighbors.forEach(neighbor => {
-            // --- RESTRICTIVE SPECIAL PATH RULE ---
             const isSpecialPath = (current.id === 38 && neighbor === 28) || (current.id === 28 && neighbor === 38) || (current.id === 8 && neighbor === 16) || (current.id === 16 && neighbor === 8);
             if (isSpecialPath && !isSpecialPiece) return;
-
             if (neighbor === 0 || neighbor === 43) {
                 const targetPiece = gameState.pieces[neighbor];
                 if (piece.type !== 'king') {
@@ -311,14 +310,11 @@ function drawBoard(){
     ctx.clearRect(0,0,canvas.width,canvas.height);
     roads.forEach(p=>{
         ctx.beginPath();
-        // Visual indicator for special restricted paths (dashed line)
         const isRestricted = (p[0] === 38 && p[1] === 28) || (p[0] === 28 && p[1] === 38) || (p[0] === 8 && p[1] === 16) || (p[0] === 16 && p[1] === 8);
         if(isRestricted) { ctx.setLineDash([5, 5]); ctx.strokeStyle = '#0088cc'; } 
         else { ctx.setLineDash([]); ctx.strokeStyle = '#7a869a'; }
         ctx.lineWidth=2.5;
-        ctx.moveTo(nodes[p[0]].x,nodes[p[0]].y);
-        ctx.lineTo(nodes[p[1]].x,nodes[p[1]].y);
-        ctx.stroke();
+        ctx.moveTo(nodes[p[0]].x,nodes[p[0]].y); ctx.lineTo(nodes[p[1]].x,nodes[p[1]].y); ctx.stroke();
     });
     ctx.setLineDash([]);
     const possible=getValidMoves(gameState.selectedNode);
@@ -336,9 +332,21 @@ function drawBoard(){
 function drawHex(x,y,size){ctx.beginPath();for(let i=0;i<6;i++){ctx.lineTo(x+size*Math.cos(i*Math.PI/3),y+size*Math.sin(i*Math.PI/3))}ctx.closePath()}
 function toggleUI(f=false){if(f || !uiContainer.classList.contains('hidden')){ uiContainer.classList.add('hidden'); pullTab.innerText="▲ MENU"; canvas.height=window.innerHeight; }else{ uiContainer.classList.remove('hidden'); pullTab.innerText="▼ CLOSE"; canvas.height=window.innerHeight-140; }drawBoard();}
 
-function broadcastState(){if(conn&&conn.open) { conn.send(gameState); syncMyInfo(); } spectators.forEach(s=>{if(s.open)s.send(gameState)})}
+function broadcastState(){
+    if(conn && conn.open) { conn.send(gameState); syncMyInfo(); } 
+    spectators.forEach(s => { if(s.open) s.send(gameState); });
+}
+
 function updateStatus(){if(gameState.gameOver)return;if(isJustConnected){ statusDiv.innerText = "CONNECTED"; statusDiv.style.color = "#00AD11"; return; }let prefix = (myRole==='spectator'?"LIVE: ":"");if (myRole === 'blue' && !isRedAssigned) prefix = "SOLO: ";statusDiv.innerText=prefix+gameState.turn.toUpperCase()+" TURN";statusDiv.style.color=gameState.turn==='blue'?'#2563EB':'#DC2626';}
-function showWinPopup(w){if(w==='draw'){winMsg.innerText="MATCH DRAW!";winMsg.style.color="#888";}else{winMsg.innerText=w.toUpperCase()+" WINS!";winMsg.style.color=w==='blue'?'#2563EB':'#DC2626';}document.getElementById('popup-controls').style.display='block';overlay.style.display='flex'}
+
+function showWinPopup(w){
+    if(w==='draw'){winMsg.innerText="MATCH DRAW!";winMsg.style.color="#888";}
+    else if(w==='surrender_blue'){winMsg.innerText="BLUE SURRENDERED - RED WINS!";winMsg.style.color="#DC2626";}
+    else if(w==='surrender_red'){winMsg.innerText="RED SURRENDERED - BLUE WINS!";winMsg.style.color="#2563EB";}
+    else{winMsg.innerText=w.toUpperCase()+" WINS!";winMsg.style.color=w==='blue'?'#2563EB':'#DC2626';}
+    document.getElementById('popup-controls').style.display='block'; overlay.style.display='flex';
+}
+
 function showFullRoomPopup(){winMsg.innerText="ROOM FULL - SPECTATING";winMsg.style.color="#333";winMsg.style.fontSize="18px";document.getElementById('popup-controls').style.display='none';overlay.style.display='flex';}
 function inviteTelegramFriend(t){const l=`https://t.me/Iq17game_bot/IQ17?startapp=${t==='spectator'?'spec_'+peer.id:peer.id}`;tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(l)}&text=${encodeURIComponent(t==='spectator'?"Watch live!":"Challenge me!")}`)}
 
@@ -349,10 +357,8 @@ function setupConnection(){
     });
     conn.on('close', () => {
         if(!gameState.gameOver && isRedAssigned) {
-            gameState.gameOver = true;
-            gameState.winner = myRole;
-            updateScore(true);
-            showWinPopup(gameState.winner);
+            gameState.gameOver = true; gameState.winner = myRole; broadcastState();
+            updateScore(true); showWinPopup(gameState.winner);
             winMsg.innerText = "OPPONENT LEFT - YOU WIN!";
         }
     });
@@ -368,6 +374,7 @@ function setupConnection(){
                     break;
                 case 'SURRENDER':
                     gameState.gameOver = true; gameState.winner = d.winner;
+                    broadcastState(); // NOTIFY SPECTATORS OF SURRENDER
                     updateScore(myRole === d.winner); showWinPopup(gameState.winner);
                     winMsg.innerText = "OPPONENT SURRENDERED!";
                     break;
@@ -375,12 +382,14 @@ function setupConnection(){
                     tg.showConfirm("Opponent offered a draw. Accept?", (ok) => {
                         if(ok && conn && conn.open) {
                             gameState.gameOver = true; gameState.winner = 'draw';
+                            broadcastState(); // NOTIFY SPECTATORS OF DRAW
                             conn.send({ type: 'DRAW_ACCEPT' }); updateScore(false, true); showWinPopup('draw');
                         }
                     });
                     break;
                 case 'DRAW_ACCEPT':
                     gameState.gameOver = true; gameState.winner = 'draw';
+                    broadcastState(); // NOTIFY SPECTATORS OF ACCEPTED DRAW
                     updateScore(false, true); showWinPopup('draw');
                     break;
                 case 'REMATCH_OFFER':
@@ -392,26 +401,13 @@ function setupConnection(){
                 case 'ROOM_FULL': showFullRoomPopup(); conn.close(); break;
                 case 'CHECK_AVAILABILITY':
                     if(isRedAssigned) { conn.send({type: "ROOM_FULL"}); }
-                    else { 
-                        isRedAssigned=true; invitePlayerBtn.style.display='none'; 
-                        isJustConnected=true; updateStatus(); 
-                        setTimeout(()=> {isJustConnected=false; updateStatus();}, 2000); 
-                        broadcastState(); 
-                    }
+                    else { isRedAssigned=true; invitePlayerBtn.style.display='none'; isJustConnected=true; updateStatus(); setTimeout(()=> {isJustConnected=false; updateStatus();}, 2000); broadcastState(); }
                     break;
             }
             return;
         }
         gameState=d; 
-        spectators.forEach(s=>{if(s.open)s.send(gameState)});
-        if(gameState.gameOver) {
-            if(myRole !== 'spectator' && myRole !== null) {
-                if(gameState.winner === 'draw') updateScore(false, true);
-                else if(gameState.winner !== myRole) updateScore(false);
-                else updateScore(true);
-            }
-            showWinPopup(gameState.winner);
-        }
+        if(gameState.gameOver) showWinPopup(gameState.winner);
         drawBoard(); updateStatus();
     });
 }
@@ -428,10 +424,7 @@ peer.on('open',id=>{
 
 peer.on('connection',c=>{
     if(c.metadata&&c.metadata.type==='spectator'){ spectators.push(c); c.on('open',()=>c.send(gameState)); }
-    else{
-        if(myRole === 'blue' && isRedAssigned) { c.on('open', () => c.send({type: "ROOM_FULL"})); return; }
-        conn=c; setupConnection();
-    }
+    else{ if(myRole === 'blue' && isRedAssigned) { c.on('open', () => c.send({type: "ROOM_FULL"})); return; } conn=c; setupConnection(); }
 });
 
 canvas.addEventListener('touchstart',e=>{
