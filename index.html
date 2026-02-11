@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IQ 17 - Spectator Sync Fixed</title>
+    <title>IQ 17 - Spectator Sync Final</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
@@ -301,7 +301,7 @@ function handleInteraction(id) {
             gameState.pieces[id] = movingPiece; delete gameState.pieces[gameState.selectedNode];
             gameState.turn = gameState.turn === 'blue' ? 'red' : 'blue'; gameState.selectedNode = null; 
             updateStatus();
-            broadcastState(); // Broadcast immediately after move
+            broadcastState(); 
         } else { gameState.selectedNode = null; }
     }
     drawBoard();
@@ -334,8 +334,13 @@ function drawHex(x,y,size){ctx.beginPath();for(let i=0;i<6;i++){ctx.lineTo(x+siz
 function toggleUI(f=false){if(f || !uiContainer.classList.contains('hidden')){ uiContainer.classList.add('hidden'); pullTab.innerText="▲ MENU"; canvas.height=window.innerHeight; }else{ uiContainer.classList.remove('hidden'); pullTab.innerText="▼ CLOSE"; canvas.height=window.innerHeight-140; }drawBoard();}
 
 function broadcastState(){
-    if(conn && conn.open) { conn.send(gameState); syncMyInfo(); } 
-    spectators.forEach(s => { if(s && s.open) s.send(gameState); });
+    if(conn && conn.open) { 
+        conn.send(gameState); 
+        syncMyInfo(); 
+    } 
+    spectators.forEach(s => { 
+        if(s && s.open) s.send(gameState); 
+    });
 }
 
 function updateStatus(){if(gameState.gameOver)return;if(isJustConnected){ statusDiv.innerText = "CONNECTED"; statusDiv.style.color = "#00AD11"; return; }let prefix = (myRole==='spectator'?"LIVE: ":"");if (myRole === 'blue' && !isRedAssigned) prefix = "SOLO: ";statusDiv.innerText=prefix+gameState.turn.toUpperCase()+" TURN";statusDiv.style.color=gameState.turn==='blue'?'#2563EB':'#DC2626';}
@@ -407,14 +412,15 @@ function setupConnection(){
             }
             return;
         }
-        // State update from peer
+        
+        // GAME STATE RECEIVED FROM OPPONENT
         gameState=d; 
         
-        // If Host (Blue) receives Red's move, relay it to spectators immediately
-        if(myRole === 'blue') {
-            spectators.forEach(s => { if(s && s.open) s.send(gameState); });
-        }
-        
+        // RELAY LOGIC: Forward opponent's move to any spectators watching ME
+        spectators.forEach(s => { 
+            if(s && s.open) s.send(gameState); 
+        });
+
         if(gameState.gameOver) showWinPopup(gameState.winner);
         drawBoard(); updateStatus();
     });
