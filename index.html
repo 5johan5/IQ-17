@@ -148,16 +148,18 @@ function updateScore(isWin, isDraw = false) {
     syncMyInfo();
 }
 
-// --- SURRENDER & DRAW LOGIC ---
 function handleSurrender() {
     if (gameState.gameOver || !isRedAssigned) return;
-    if (confirm("Are you sure you want to surrender? This counts as a loss.")) {
-        gameState.gameOver = true;
-        gameState.winner = (myRole === 'blue' ? 'red' : 'blue');
-        if (conn && conn.open) conn.send({ type: 'SURRENDER', winner: gameState.winner });
-        updateScore(false);
-        showWinPopup(gameState.winner);
-    }
+    tg.showConfirm("Are you sure you want to surrender? This counts as a loss.", (confirmed) => {
+        if (confirmed) {
+            gameState.gameOver = true;
+            gameState.winner = (myRole === 'blue' ? 'red' : 'blue');
+            if (conn && conn.open) conn.send({ type: 'SURRENDER', winner: gameState.winner });
+            updateScore(false);
+            showWinPopup(gameState.winner);
+            winMsg.innerText = "YOU SURRENDERED";
+        }
+    });
 }
 
 function handleDrawRequest() {
@@ -337,13 +339,15 @@ function setupConnection(){
             return;
         }
         if(d.type === 'DRAW_OFFER') {
-            if(confirm("Opponent offered a draw. Accept?")) {
-                gameState.gameOver = true;
-                gameState.winner = 'draw';
-                conn.send({ type: 'DRAW_ACCEPT' });
-                updateScore(false, true);
-                showWinPopup('draw');
-            }
+            tg.showConfirm("Opponent offered a draw. Accept?", (confirmed) => {
+                if(confirmed) {
+                    gameState.gameOver = true;
+                    gameState.winner = 'draw';
+                    if (conn && conn.open) conn.send({ type: 'DRAW_ACCEPT' });
+                    updateScore(false, true);
+                    showWinPopup('draw');
+                }
+            });
             return;
         }
         if(d.type === 'DRAW_ACCEPT') {
