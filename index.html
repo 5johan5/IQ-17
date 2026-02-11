@@ -39,12 +39,12 @@
 
     <div id="scoreboard">
         <div id="blue-pill" class="score-pill blue-side">
-            <span id="blue-name" class="p-name">BLUE</span>
-            <span class="p-iq">IQ: <span id="blue-iq-val">30</span></span>
-            <span id="blue-rank" class="p-rank">Initiate</span>
+            <span id="blue-name" class="p-name">WAITING...</span>
+            <span class="p-iq">IQ: <span id="blue-iq-val">?</span></span>
+            <span id="blue-rank" class="p-rank">---</span>
         </div>
         <div id="red-pill" class="score-pill red-side">
-            <span id="red-name" class="p-name">RED</span>
+            <span id="red-name" class="p-name">WAITING...</span>
             <span class="p-iq">IQ: <span id="red-iq-val">?</span></span>
             <span id="red-rank" class="p-rank">---</span>
         </div>
@@ -96,19 +96,22 @@ function loadScore() {
     tg.CloudStorage.getItem('player_iq_final_v1', (err, value) => {
         if (!err && value) userScore = parseInt(value);
         else userScore = 30;
-        updateScoreboardDisplay();
-        syncMyInfo();
+        
+        // Only set the display if the user is a PLAYER. 
+        // Spectators should not see their own name on the board.
+        if (myRole !== 'spectator') {
+            updateScoreboardDisplay();
+            syncMyInfo();
+        }
     });
 }
 
 function updateScoreboardDisplay() {
+    if (myRole === 'spectator') return; // Spectators only get names from INFO_SYNC
     const side = myRole === 'blue' ? 'blue' : 'red';
-    const nameEl = document.getElementById(`${side}-name`);
-    const iqEl = document.getElementById(`${side}-iq-val`);
-    const rankEl = document.getElementById(`${side}-rank`);
-    if(nameEl) nameEl.innerText = myTelegramName;
-    if(iqEl) iqEl.innerText = userScore;
-    if(rankEl) rankEl.innerText = getRank(userScore);
+    document.getElementById(`${side}-name`).innerText = myTelegramName;
+    document.getElementById(`${side}-iq-val`).innerText = userScore;
+    document.getElementById(`${side}-rank`).innerText = getRank(userScore);
 }
 
 function updateScore(isWin, isDraw = false) {
@@ -181,7 +184,7 @@ function triggerRestart() {
 }
 
 function syncMyInfo() {
-    if (conn && conn.open) {
+    if (myRole !== 'spectator' && conn && conn.open) {
         conn.send({ type: 'INFO_SYNC', name: myTelegramName, iq: userScore, role: myRole });
     }
 }
@@ -373,18 +376,23 @@ function setupConnection(){
         if(d.type) {
             switch(d.type) {
                 case 'INFO_SYNC':
-                    const side = d.role === 'blue' ? 'blue' : 'red';
-                    document.getElementById(`${side}-name`).innerText = d.name;
-                    document.getElementById(`${side}-iq-val`).innerText = d.iq;
-                    document.getElementById(`${side}-rank`).innerText = getRank(d.iq);
+                    const sPill = d.role === 'blue' ? 'blue' : 'red';
+                    document.getElementById(`${sPill}-name`).innerText = d.name;
+                    document.getElementById(`${sPill}-iq-val`).innerText = d.iq;
+                    document.getElementById(`${sPill}-rank`).innerText = getRank(d.iq);
+                    
+                    // RELAY: If a player sends info, relay it to spectators
+                    spectators.forEach(s => { if(s && s.open) s.send(d); });
                     break;
                 case 'SURRENDER':
                     gameState.gameOver = true; gameState.winner = d.winner;
                     broadcastState(); 
-                    updateScore(myRole === d.winner); showWinPopup(gameState.winner);
+                    if(myRole !== 'spectator') updateScore(myRole === d.winner); 
+                    showWinPopup(gameState.winner);
                     winMsg.innerText = "OPPONENT SURRENDERED!";
                     break;
                 case 'DRAW_OFFER':
+                    if(myRole === 'spectator') return;
                     tg.showConfirm("Opponent offered a draw. Accept?", (ok) => {
                         if(ok && conn && conn.open) {
                             gameState.gameOver = true; gameState.winner = 'draw';
@@ -396,9 +404,11 @@ function setupConnection(){
                 case 'DRAW_ACCEPT':
                     gameState.gameOver = true; gameState.winner = 'draw';
                     broadcastState(); 
-                    updateScore(false, true); showWinPopup('draw');
+                    if(myRole !== 'spectator') updateScore(false, true); 
+                    showWinPopup('draw');
                     break;
                 case 'REMATCH_OFFER':
+                    if(myRole === 'spectator') return;
                     tg.showConfirm("Opponent wants a rematch. Accept?", (ok) => {
                         if(ok && conn && conn.open) { conn.send({ type: 'REMATCH_ACCEPT' }); triggerRestart(); }
                     });
@@ -413,14 +423,8 @@ function setupConnection(){
             return;
         }
         
-        // GAME STATE RECEIVED FROM OPPONENT
         gameState=d; 
-        
-        // RELAY LOGIC: Forward opponent's move to any spectators watching ME
-        spectators.forEach(s => { 
-            if(s && s.open) s.send(gameState); 
-        });
-
+        spectators.forEach(s => { if(s && s.open) s.send(gameState); });
         if(gameState.gameOver) showWinPopup(gameState.winner);
         drawBoard(); updateStatus();
     });
@@ -439,7 +443,11 @@ peer.on('open',id=>{
 peer.on('connection',c=>{
     if(c.metadata&&c.metadata.type==='spectator'){ 
         spectators.push(c); 
-        c.on('open',()=>c.send(gameState)); 
+        c.on('open',()=>{
+            c.send(gameState);
+            // Also send current player info to the new spectator
+            syncMyInfo(); 
+        }); 
     }
     else{ 
         if(myRole === 'blue' && isRedAssigned) { c.on('open', () => c.send({type: "ROOM_FULL"})); return; } 
@@ -449,6 +457,7 @@ peer.on('connection',c=>{
 });
 
 canvas.addEventListener('touchstart',e=>{
+    if(myRole==='spectator') return;
     e.preventDefault(); toggleUI(true);
     const t=e.touches[0], r=canvas.getBoundingClientRect();
     const x=t.clientX-r.left, y=t.clientY-r.top;
