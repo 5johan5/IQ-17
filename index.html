@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IQ 17 - Spectator Sync Final</title>
+    <title>IQ 17 - Ranked System</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
@@ -84,10 +84,20 @@ tg.expand();
 const myTelegramName = tg.initDataUnsafe.user ? tg.initDataUnsafe.user.first_name : "Player";
 
 function getRank(iq) {
-    if (iq <= 50) return "Initiate";
-    if (iq <= 70) return "Strategist";
-    if (iq <= 85) return "Mastermind";
-    return "Conqueror";
+    if (iq <= 20) return "Initiate III";
+    if (iq <= 35) return "Initiate II";
+    if (iq <= 50) return "Initiate I";
+    if (iq <= 57) return "Strategist III";
+    if (iq <= 63) return "Strategist II";
+    if (iq <= 70) return "Strategist I";
+    if (iq <= 75) return "Mastermind III";
+    if (iq <= 80) return "Mastermind II";
+    if (iq <= 85) return "Mastermind I";
+    if (iq <= 90) return "Conqueror III";
+    if (iq <= 95) return "Conqueror II";
+    if (iq < 100) return "Conqueror I";
+    if (iq >= 100) return "Grand Conqueror";
+    return "Initiate III";
 }
 
 let userScore = 30;
@@ -183,14 +193,8 @@ function triggerRestart() {
 function syncMyInfo() {
     if (myRole === 'spectator') return;
     const info = { type: 'INFO_SYNC', name: myTelegramName, iq: userScore, role: myRole };
-    
-    // Send to opponent
     if (conn && conn.open) conn.send(info);
-    
-    // Send to all spectators currently watching me
-    spectators.forEach(s => {
-        if (s && s.open) s.send(info);
-    });
+    spectators.forEach(s => { if (s && s.open) s.send(info); });
 }
 
 const canvas = document.getElementById('gameCanvas');
@@ -448,11 +452,8 @@ peer.on('connection',c=>{
     if(c.metadata&&c.metadata.type==='spectator'){ 
         spectators.push(c); 
         c.on('open',()=>{
-            // 1. Send the game board
             c.send(gameState);
-            // 2. Send my own info directly to the new spectator
             c.send({ type: 'INFO_SYNC', name: myTelegramName, iq: userScore, role: myRole });
-            // 3. Ask opponent to send their info so it reaches the spectator
             if (conn && conn.open) conn.send({type: 'FORCE_SYNC_REQUEST'});
         }); 
     }
