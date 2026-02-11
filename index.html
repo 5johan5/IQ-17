@@ -96,9 +96,6 @@ function loadScore() {
     tg.CloudStorage.getItem('player_iq_final_v1', (err, value) => {
         if (!err && value) userScore = parseInt(value);
         else userScore = 30;
-        
-        // Only set the display if the user is a PLAYER. 
-        // Spectators should not see their own name on the board.
         if (myRole !== 'spectator') {
             updateScoreboardDisplay();
             syncMyInfo();
@@ -107,7 +104,7 @@ function loadScore() {
 }
 
 function updateScoreboardDisplay() {
-    if (myRole === 'spectator') return; // Spectators only get names from INFO_SYNC
+    if (myRole === 'spectator') return;
     const side = myRole === 'blue' ? 'blue' : 'red';
     document.getElementById(`${side}-name`).innerText = myTelegramName;
     document.getElementById(`${side}-iq-val`).innerText = userScore;
@@ -375,13 +372,15 @@ function setupConnection(){
         if(!d || typeof d !== 'object') return;
         if(d.type) {
             switch(d.type) {
+                case 'FORCE_SYNC_REQUEST':
+                    // Opponent is asking us to resend our info for a new spectator
+                    syncMyInfo();
+                    break;
                 case 'INFO_SYNC':
                     const sPill = d.role === 'blue' ? 'blue' : 'red';
                     document.getElementById(`${sPill}-name`).innerText = d.name;
                     document.getElementById(`${sPill}-iq-val`).innerText = d.iq;
                     document.getElementById(`${sPill}-rank`).innerText = getRank(d.iq);
-                    
-                    // RELAY: If a player sends info, relay it to spectators
                     spectators.forEach(s => { if(s && s.open) s.send(d); });
                     break;
                 case 'SURRENDER':
@@ -422,7 +421,6 @@ function setupConnection(){
             }
             return;
         }
-        
         gameState=d; 
         spectators.forEach(s => { if(s && s.open) s.send(gameState); });
         if(gameState.gameOver) showWinPopup(gameState.winner);
@@ -445,8 +443,9 @@ peer.on('connection',c=>{
         spectators.push(c); 
         c.on('open',()=>{
             c.send(gameState);
-            // Also send current player info to the new spectator
             syncMyInfo(); 
+            // THE FIX: Tell the opponent to resend their info so the spectator sees BOTH names
+            if (conn && conn.open) conn.send({type: 'FORCE_SYNC_REQUEST'});
         }); 
     }
     else{ 
