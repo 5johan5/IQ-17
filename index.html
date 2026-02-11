@@ -26,7 +26,7 @@
         #game-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 100; flex-direction: column; justify-content: center; align-items: center; color: white; }
         .popup-box { background: white; padding: 30px; border-radius: 15px; color: #333; width: 80%; max-width: 300px; }
         #persistent-score { position: absolute; top: 10px; right: 10px; z-index: 60; background: white; padding: 5px 12px; border-radius: 20px; border: 1px solid #ccc; font-weight: bold; color: #0088cc; font-size: 14px; }
-        #iq-change { font-size: 18px; font-weight: bold; margin-bottom: 15px; display: block; }
+        #iq-change-display { font-size: 20px; font-weight: bold; margin: 15px 0; display: block; }
     </style>
 </head>
 <body>
@@ -36,7 +36,7 @@
     <div id="game-overlay">
         <div class="popup-box">
             <h2 id="win-message">BLUE WINS!</h2>
-            <div id="iq-change"></div>
+            <div id="iq-change-display"></div>
             <div id="popup-controls">
                 <button class="btn" style="background:#00AD11" onclick="triggerRestart()">Restart</button>
                 <button class="btn" style="background:#888" onclick="document.getElementById('game-overlay').style.display='none'">Close</button>
@@ -61,11 +61,11 @@
 const tg = window.Telegram.WebApp;
 tg.expand();
 
-// --- IQ SCORE LOGIC ---
+// --- PERSISTENT IQ LOGIC ---
 let userScore = 30;
 
 function loadScore() {
-    tg.CloudStorage.getItem('player_iq_score_v2', (err, value) => {
+    tg.CloudStorage.getItem('player_iq_v3', (err, value) => {
         if (!err && value) userScore = parseInt(value);
         else userScore = 30;
         document.getElementById('score-val').innerText = userScore;
@@ -74,34 +74,32 @@ function loadScore() {
 
 function updateScore(isWin) {
     let change = 0;
+    const display = document.getElementById('iq-change-display');
+    
     if (isWin) {
         if (userScore < 50) change = 10;
         else if (userScore < 70) change = 5;
         else if (userScore < 85) change = 3;
         else if (userScore < 100) change = 1;
-        userScore += change;
+        userScore = Math.min(100, userScore + change);
+        display.innerText = `+${change} IQ Gained!`;
+        display.style.color = "#00AD11";
     } else {
-        if (userScore <= 50) change = -10;
-        else if (userScore <= 70) change = -15;
-        else if (userScore <= 85) change = -20;
-        else if (userScore <= 100) change = -25;
-        userScore += change;
+        if (userScore <= 50) change = 10;
+        else if (userScore <= 70) change = 15;
+        else if (userScore <= 85) change = 20;
+        else if (userScore <= 100) change = 25;
+        userScore = Math.max(0, userScore - change);
+        display.innerText = `-${change} IQ Lost`;
+        display.style.color = "#DC2626";
     }
 
-    if (userScore > 100) userScore = 100;
-    if (userScore < 0) userScore = 0;
-
     document.getElementById('score-val').innerText = userScore;
-    tg.CloudStorage.setItem('player_iq_score_v2', userScore.toString());
-    
-    const changeDiv = document.getElementById('iq-change');
-    changeDiv.innerText = isWin ? `+${change} IQ Gained!` : `${change} IQ Lost`;
-    changeDiv.style.color = isWin ? "#00AD11" : "#DC2626";
+    tg.CloudStorage.setItem('player_iq_v3', userScore.toString());
 }
 
 loadScore();
 
-// --- GAME LOGIC ---
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const statusDiv = document.getElementById('status');
@@ -179,6 +177,7 @@ function getValidMoves(startNode) {
                     const angle1 = Math.atan2(p2.y - p1.y, p2.x - p1.x), angle2 = Math.atan2(p3.y - p2.y, p3.x - p2.x);
                     let diff = Math.abs(angle1 - angle2);
                     if (diff > Math.PI) diff = 2 * Math.PI - diff;
+                    // The core movement rule:
                     if ((diff * 180 / Math.PI) > 17) return; 
                 }
             }
@@ -217,12 +216,13 @@ function handleInteraction(id) {
         if (getValidMoves(gameState.selectedNode).includes(id)) {
             const movingPiece = gameState.pieces[gameState.selectedNode];
             if ((target && target.type === 'king') || (movingPiece.type === 'king' && ((movingPiece.team === 'blue' && id === 43) || (movingPiece.team === 'red' && id === 0)))) {
-                gameState.gameOver = true; gameState.winner = gameState.turn; 
+                gameState.gameOver = true; 
+                gameState.winner = gameState.turn; 
                 
-                // --- SCORE CALCULATION TRIGGER ---
-                if (myRole === gameState.turn) updateScore(true); 
+                // --- SCORE CALCULATION ---
+                if (myRole === gameState.turn) updateScore(true);
                 else if (myRole !== null && myRole !== 'spectator') updateScore(false);
-                else document.getElementById('iq-change').innerText = "Spectating - No IQ change";
+                else document.getElementById('iq-change-display').innerText = "Spectator View";
 
                 showWinPopup(gameState.turn);
             }
@@ -265,7 +265,7 @@ function updateStatus(){
 function showWinPopup(w){winMsg.innerText=w.toUpperCase()+" WINS!";winMsg.style.color=w==='blue'?'#2563EB':'#DC2626';document.getElementById('popup-controls').style.display='block';overlay.style.display='flex'}
 
 function showFullRoomPopup(){
-    winMsg.innerText="PLAYERS ARE PLAYING PLEASE ENTER VIA SPECTATOR LINK";
+    winMsg.innerText="ROOM FULL - SPECTATING";
     winMsg.style.color="#333";
     winMsg.style.fontSize="18px";
     document.getElementById('popup-controls').style.display='none';
