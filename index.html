@@ -255,10 +255,17 @@ function getValidMoves(startNode) {
             }
             if (isSpecialPiece && current.lastNode !== null) {
                 const p1 = nodes[current.lastNode], p2 = nodes[current.id], p3 = nodes[neighbor];
-                const angle1 = Math.atan2(p2.y - p1.y, p2.x - p1.x), angle2 = Math.atan2(p3.y - p2.y, p3.x - p2.x);
-                let diff = Math.abs(angle1 - angle2);
-                if (diff > Math.PI) diff = 2 * Math.PI - diff;
-                if ((diff * 180 / Math.PI) > 17) return; // Zigzag Turn Rule Updated to 17 degrees
+                
+                // --- SPECIAL EXCEPTIONS FOR 38->28 and 8->16 ---
+                const isException1 = (current.id === 38 && neighbor === 28);
+                const isException2 = (current.id === 8 && neighbor === 16);
+
+                if (!isException1 && !isException2) {
+                    const angle1 = Math.atan2(p2.y - p1.y, p2.x - p1.x), angle2 = Math.atan2(p3.y - p2.y, p3.x - p2.x);
+                    let diff = Math.abs(angle1 - angle2);
+                    if (diff > Math.PI) diff = 2 * Math.PI - diff;
+                    if ((diff * 180 / Math.PI) > 17) return; 
+                }
             }
             if (!visited.has(neighbor)) {
                 const targetPiece = gameState.pieces[neighbor];
