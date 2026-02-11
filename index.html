@@ -57,7 +57,7 @@
             <h2 id="win-message">BLUE WINS!</h2>
             <div id="iq-change-display"></div>
             <div id="popup-controls">
-                <button class="btn" style="background:#00AD11" onclick="triggerRestart()">Restart</button>
+                <button class="btn" style="background:#00AD11" onclick="handleRematchRequest()">Request Rematch</button>
                 <button class="btn" style="background:#888" onclick="document.getElementById('game-overlay').style.display='none'">Close</button>
             </div>
         </div>
@@ -168,6 +168,21 @@ function handleDrawRequest() {
         conn.send({ type: 'DRAW_OFFER' });
         tg.showAlert("Draw offer sent to opponent.");
     }
+}
+
+function handleRematchRequest() {
+    if (conn && conn.open) {
+        conn.send({ type: 'REMATCH_OFFER' });
+        tg.showAlert("Rematch request sent.");
+    }
+}
+
+function triggerRestart() {
+    gameState = initialGameState();
+    overlay.style.display = 'none';
+    broadcastState();
+    drawBoard();
+    updateStatus();
 }
 
 function syncMyInfo() {
@@ -299,7 +314,7 @@ if(p){ctx.shadowBlur=12;ctx.shadowColor=p.team=='blue'?'rgba(37,99,235,0.7)':'rg
 if(p&&p.type==='king'){drawHex(n.x,n.y,20);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle=p.team=='blue'?'#2563EB':'#DC2626';ctx.lineWidth=3;ctx.stroke()}else{ctx.beginPath();ctx.arc(n.x,n.y,16,0,7);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle=p?(p.team=='blue'?'#2563EB':'#DC2626'):'#c1c7d0';ctx.lineWidth=2;ctx.stroke()}if(p){ctx.fillStyle=p.team=='blue'?'#2563EB':'#DC2626';ctx.font='bold 18px Arial';ctx.textAlign='center';let icon=p.type=='king'?'👑':p.type=='triangle'?'▲':p.type=='square'?'■':'X';ctx.fillText(icon,n.x,n.y+(p.type=='king'?7:6))}ctx.shadowBlur=0;}}
 function drawHex(x,y,size){ctx.beginPath();for(let i=0;i<6;i++){ctx.lineTo(x+size*Math.cos(i*Math.PI/3),y+size*Math.sin(i*Math.PI/3))}ctx.closePath()}
 function toggleUI(f=false){if(f || !uiContainer.classList.contains('hidden')){ uiContainer.classList.add('hidden'); pullTab.innerText="▲ MENU"; canvas.height=window.innerHeight; }else{ uiContainer.classList.remove('hidden'); pullTab.innerText="▼ CLOSE"; canvas.height=window.innerHeight-140; }drawBoard();}
-function triggerRestart(){if(myRole==='spectator')return;gameState=initialGameState();overlay.style.display='none';if(conn&&conn.open)conn.send("RESET_GAME");broadcastState();drawBoard();updateStatus()}
+
 function broadcastState(){if(conn&&conn.open) { conn.send(gameState); syncMyInfo(); } spectators.forEach(s=>{if(s.open)s.send(gameState)})}
 function updateStatus(){if(gameState.gameOver)return;if(isJustConnected){ statusDiv.innerText = "CONNECTED"; statusDiv.style.color = "#00AD11"; return; }let prefix = (myRole==='spectator'?"LIVE: ":"");if (myRole === 'blue' && !isRedAssigned) prefix = "SOLO: ";statusDiv.innerText=prefix+gameState.turn.toUpperCase()+" TURN";statusDiv.style.color=gameState.turn==='blue'?'#2563EB':'#DC2626';}
 function showWinPopup(w){if(w==='draw'){winMsg.innerText="MATCH DRAW!";winMsg.style.color="#888";}else{winMsg.innerText=w.toUpperCase()+" WINS!";winMsg.style.color=w==='blue'?'#2563EB':'#DC2626';}document.getElementById('popup-controls').style.display='block';overlay.style.display='flex'}
@@ -309,7 +324,7 @@ function inviteTelegramFriend(t){const l=`https://t.me/Iq17game_bot/IQ17?startap
 function setupConnection(){
     conn.on('open',()=>{
         syncMyInfo();
-        if(myRole==='red'){ conn.send("CHECK_AVAILABILITY"); invitePlayerBtn.style.display='none'; isJustConnected=true; updateStatus(); setTimeout(()=> {isJustConnected=false; updateStatus();}, 2000); }
+        if(myRole==='red'){ conn.send({type: 'CHECK_AVAILABILITY'}); invitePlayerBtn.style.display='none'; isJustConnected=true; updateStatus(); setTimeout(()=> {isJustConnected=false; updateStatus();}, 2000); }
     });
     
     conn.on('close', () => {
@@ -357,23 +372,40 @@ function setupConnection(){
             showWinPopup('draw');
             return;
         }
-        if(d==="ROOM_FULL"){ showFullRoomPopup(); conn.close(); return; }
-        if(d==="CHECK_AVAILABILITY"){
-            if(isRedAssigned){ conn.send("ROOM_FULL"); }
+        if(d.type === 'REMATCH_OFFER') {
+            tg.showConfirm("Opponent requested a rematch. Start new game?", (confirmed) => {
+                if(confirmed) {
+                    if (conn && conn.open) conn.send({ type: 'REMATCH_ACCEPT' });
+                    triggerRestart();
+                }
+            });
+            return;
+        }
+        if(d.type === 'REMATCH_ACCEPT') {
+            triggerRestart();
+            return;
+        }
+        if(d.type === "ROOM_FULL"){ showFullRoomPopup(); conn.close(); return; }
+        if(d.type === "CHECK_AVAILABILITY"){
+            if(isRedAssigned){ conn.send({type: "ROOM_FULL"}); }
             else { isRedAssigned=true; invitePlayerBtn.style.display='none'; isJustConnected=true; updateStatus(); setTimeout(()=> {isJustConnected=false; updateStatus();}, 2000); broadcastState(); }
             return;
         }
-        if(d==="RESET_GAME"){ gameState=initialGameState(); overlay.style.display='none'; drawBoard(); updateStatus(); return; }
-        gameState=d; spectators.forEach(s=>{if(s.open)s.send(gameState)});
-        if(gameState.gameOver) {
-            if(myRole !== 'spectator' && myRole !== null) {
-                if(gameState.winner === 'draw') updateScore(false, true);
-                else if(gameState.winner !== myRole) updateScore(false);
-                else updateScore(true);
+        
+        // Handle Game State updates (usually direct object)
+        if (!d.type) {
+            gameState=d; 
+            spectators.forEach(s=>{if(s.open)s.send(gameState)});
+            if(gameState.gameOver) {
+                if(myRole !== 'spectator' && myRole !== null) {
+                    if(gameState.winner === 'draw') updateScore(false, true);
+                    else if(gameState.winner !== myRole) updateScore(false);
+                    else updateScore(true);
+                }
+                showWinPopup(gameState.winner);
             }
-            showWinPopup(gameState.winner);
+            drawBoard(); updateStatus();
         }
-        drawBoard(); updateStatus();
     });
 }
 
@@ -390,7 +422,7 @@ peer.on('open',id=>{
 peer.on('connection',c=>{
     if(c.metadata&&c.metadata.type==='spectator'){ spectators.push(c); c.on('open',()=>c.send(gameState)); }
     else{
-        if(myRole === 'blue' && isRedAssigned) { c.on('open', () => c.send("ROOM_FULL")); return; }
+        if(myRole === 'blue' && isRedAssigned) { c.on('open', () => c.send({type: "ROOM_FULL"})); return; }
         conn=c; setupConnection();
     }
 });
