@@ -25,6 +25,7 @@
         .btn { padding: 10px 18px; background: #0088cc; color: white; border: none; border-radius: 8px; cursor: pointer; margin: 3px; font-weight: bold; font-size: 14px; }
         #game-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 100; flex-direction: column; justify-content: center; align-items: center; color: white; }
         .popup-box { background: white; padding: 30px; border-radius: 15px; color: #333; width: 80%; max-width: 300px; }
+        
         #scoreboard { position: absolute; top: 5px; width: 100%; padding: 0 5px; box-sizing: border-box; pointer-events: none; z-index: 60; display: flex; justify-content: space-between; }
         .score-pill { background: rgba(255, 255, 255, 0.9); padding: 4px 8px; border-radius: 8px; border: 1.5px solid #ccc; width: 100px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; flex-direction: column; align-items: center; }
         .blue-side { border-color: #2563EB; color: #2563EB; }
@@ -32,6 +33,7 @@
         .p-name { font-weight: 800; font-size: 10px; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; }
         .p-iq { font-size: 9px; font-weight: bold; }
         .p-rank { font-size: 8px; font-style: italic; opacity: 0.9; }
+        
         #iq-change-display { font-size: 18px; font-weight: bold; margin: 15px 0; display: block; }
     </style>
 </head>
@@ -213,8 +215,7 @@ const nodes = {
     39: {x: 80*scaleX, y: 640*scaleY}, 40: {x: 160*scaleX, y: 640*scaleY}, 41: {x: 240*scaleX, y: 640*scaleY}, 42: {x: 320*scaleX, y: 640*scaleY}, 43: {x: 200*scaleX, y: 690*scaleY}
 };
 
-// ADDED [38,28] AND [8,16] TO ROADS ARRAY
-const roads = [[0,2],[0,3],[1,2],[2,3],[3,4],[1,5],[2,6],[3,7],[4,8],[5,6],[6,7],[7,8],[5,9],[6,10],[7,11],[8,12],[9,10],[10,11],[11,12],[2,5],[3,6],[6,9],[4,7],[7,10],[8,11],[9,13],[9,14],[10,14],[10,15],[11,16],[11,17],[12,18],[12,17],[13,14],[14,15],[16,17],[17,18],[13,19],[14,20],[15,21],[16,22],[17,23],[18,24],[19,20],[20,21],[22,23],[23,24],[19,30],[20,29],[21,28],[22,27],[23,26],[24,25],[30,29],[29,28],[27,26],[26,25],[15,22],[21,27],[31,30],[31,29],[32,29],[32,28],[33,27],[33,26],[34,26],[34,25],[31,32],[32,33],[33,34],[31,38],[32,37],[33,36],[34,35],[38,37],[37,36],[36,35],[38,39],[37,40],[36,41],[35,42],[39,40],[40,41],[41,42],[40,43],[41,43],[38,32],[39,37],[37,33],[40,36],[36,34],[41,35],[18,23],[23,27],[16,23],[23,25],[13,20],[20,28],[15,20],[20,30],[38,28],[8,16]];
+const roads = [[0,2],[0,3],[1,2],[2,3],[3,4],[1,5],[2,6],[3,7],[4,8],[5,6],[6,7],[7,8],[5,9],[6,10],[7,11],[8,12],[9,10],[10,11],[11,12],[2,5],[3,6],[6,9],[4,7],[7,10],[8,11],[9,13],[9,14],[10,14],[10,15],[11,16],[11,17],[12,18],[12,17],[13,14],[14,15],[16,17],[17,18],[13,19],[14,20],[15,21],[16,22],[17,23],[18,24],[19,20],[20,21],[22,23],[23,24],[19,30],[20,29],[21,28],[22,27],[23,26],[24,25],[30,29],[29,28],[27,26],[26,25],[15,22],[21,27],[31,30],[31,29],[32,29],[32,28],[33,27],[33,26],[34,26],[34,25],[31,32],[32,33],[33,34],[31,38],[32,37],[33,36],[34,35],[38,37],[37,36],[36,35],[38,39],[37,40],[36,41],[35,42],[39,40],[40,41],[41,42],[40,43],[41,43],[38,32],[39,37],[37,33],[40,36],[36,34],[41,35],[18,23],[23,27],[16,23],[23,25],[13,20],[20,28],[15,20],[20,30]];
 
 let peer = new Peer({ config: {'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }, { 'urls': 'turn:global.relay.metered.ca:443', 'username': '12086455af0334c526b9d3da', 'credential': 'ZxLMG6ZJX9R7oyQE' }], 'iceTransportPolicy': 'relay' } });
 let conn = null, spectators = [], myRole = null, isRedAssigned = false, isJustConnected = false;
@@ -253,17 +254,13 @@ function getValidMoves(startNode) {
                 } else { if (targetPiece && targetPiece.team === piece.team) return; }
             }
             if (isSpecialPiece && current.lastNode !== null) {
-                // BYPASS RULE FOR 38->28 AND 8->16
-                const isExceptionStep = (current.id === 38 && neighbor === 28) || (current.id === 8 && neighbor === 16);
-                const wasExceptionStep = (current.lastNode === 38 && current.id === 28) || (current.lastNode === 8 && current.id === 16);
-
-                if (!isExceptionStep && !wasExceptionStep) {
-                    const p1 = nodes[current.lastNode], p2 = nodes[current.id], p3 = nodes[neighbor];
-                    const angle1 = Math.atan2(p2.y - p1.y, p2.x - p1.x), angle2 = Math.atan2(p3.y - p2.y, p3.x - p2.x);
-                    let diff = Math.abs(angle1 - angle2);
-                    if (diff > Math.PI) diff = 2 * Math.PI - diff;
-                    if ((diff * 180 / Math.PI) > 17) return; 
-                }
+                const p1 = nodes[current.lastNode], p2 = nodes[current.id], p3 = nodes[neighbor];
+                const angle1 = Math.atan2(p2.y - p1.y, p2.x - p1.x), angle2 = Math.atan2(p3.y - p2.y, p3.x - p2.x);
+                let diff = Math.abs(angle1 - angle2);
+                if (diff > Math.PI) diff = 2 * Math.PI - diff;
+                
+                // --- MODIFIED ZIGZAG RULE: 17 DEGREES ---
+                if ((diff * 180 / Math.PI) > 17) return; 
             }
             if (!visited.has(neighbor)) {
                 const targetPiece = gameState.pieces[neighbor];
