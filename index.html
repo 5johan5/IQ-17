@@ -57,7 +57,7 @@
             <h2 id="win-message">BLUE WINS!</h2>
             <div id="iq-change-display"></div>
             <div id="popup-controls">
-                <button class="btn" style="background:#00AD11" onclick="handleRematchRequest()">Request Rematch</button>
+                <button id="rematch-btn-ui" class="btn" style="background:#00AD11" onclick="handleRematchRequest()">Request Rematch</button>
                 <button class="btn" style="background:#888" onclick="document.getElementById('game-overlay').style.display='none'">Close</button>
             </div>
         </div>
@@ -104,15 +104,13 @@ function loadScore() {
 }
 
 function updateScoreboardDisplay() {
-    if (myRole === 'blue') {
-        document.getElementById('blue-name').innerText = myTelegramName;
-        document.getElementById('blue-iq-val').innerText = userScore;
-        document.getElementById('blue-rank').innerText = getRank(userScore);
-    } else if (myRole === 'red') {
-        document.getElementById('red-name').innerText = myTelegramName;
-        document.getElementById('red-iq-val').innerText = userScore;
-        document.getElementById('red-rank').innerText = getRank(userScore);
-    }
+    const side = myRole === 'blue' ? 'blue' : 'red';
+    const nameEl = document.getElementById(`${side}-name`);
+    const iqEl = document.getElementById(`${side}-iq-val`);
+    const rankEl = document.getElementById(`${side}-rank`);
+    if(nameEl) nameEl.innerText = myTelegramName;
+    if(iqEl) iqEl.innerText = userScore;
+    if(rankEl) rankEl.innerText = getRank(userScore);
 }
 
 function updateScore(isWin, isDraw = false) {
@@ -149,12 +147,12 @@ function updateScore(isWin, isDraw = false) {
 }
 
 function handleSurrender() {
-    if (gameState.gameOver || !isRedAssigned) return;
-    tg.showConfirm("Are you sure you want to surrender? This counts as a loss.", (confirmed) => {
-        if (confirmed) {
+    if (gameState.gameOver || (myRole === 'blue' && !isRedAssigned)) return;
+    tg.showConfirm("Surrender and lose IQ?", (ok) => {
+        if (ok && conn && conn.open) {
             gameState.gameOver = true;
             gameState.winner = (myRole === 'blue' ? 'red' : 'blue');
-            if (conn && conn.open) conn.send({ type: 'SURRENDER', winner: gameState.winner });
+            conn.send({ type: 'SURRENDER', winner: gameState.winner });
             updateScore(false);
             showWinPopup(gameState.winner);
             winMsg.innerText = "YOU SURRENDERED";
@@ -163,10 +161,10 @@ function handleSurrender() {
 }
 
 function handleDrawRequest() {
-    if (gameState.gameOver || !isRedAssigned) return;
+    if (gameState.gameOver || (myRole === 'blue' && !isRedAssigned)) return;
     if (conn && conn.open) {
         conn.send({ type: 'DRAW_OFFER' });
-        tg.showAlert("Draw offer sent to opponent.");
+        tg.showAlert("Draw offer sent.");
     }
 }
 
@@ -180,7 +178,7 @@ function handleRematchRequest() {
 function triggerRestart() {
     gameState = initialGameState();
     overlay.style.display = 'none';
-    broadcastState();
+    if (myRole === 'blue') broadcastState(); 
     drawBoard();
     updateStatus();
 }
@@ -260,7 +258,7 @@ function getValidMoves(startNode) {
                 const angle1 = Math.atan2(p2.y - p1.y, p2.x - p1.x), angle2 = Math.atan2(p3.y - p2.y, p3.x - p2.x);
                 let diff = Math.abs(angle1 - angle2);
                 if (diff > Math.PI) diff = 2 * Math.PI - diff;
-                if ((diff * 180 / Math.PI) > 17) return; 
+                if ((diff * 180 / Math.PI) > 25.61) return; // Personalised Turn Rule Applied
             }
             if (!visited.has(neighbor)) {
                 const targetPiece = gameState.pieces[neighbor];
@@ -338,74 +336,86 @@ function setupConnection(){
     });
 
     conn.on('data',d=>{
-        if(d.type === 'INFO_SYNC') {
-            const side = d.role === 'blue' ? 'blue' : 'red';
-            document.getElementById(`${side}-name`).innerText = d.name;
-            document.getElementById(`${side}-iq-val`).innerText = d.iq;
-            document.getElementById(`${side}-rank`).innerText = getRank(d.iq);
-            return;
-        }
-        if(d.type === 'SURRENDER') {
-            gameState.gameOver = true;
-            gameState.winner = d.winner;
-            updateScore(myRole === d.winner);
-            showWinPopup(gameState.winner);
-            winMsg.innerText = "OPPONENT SURRENDERED!";
-            return;
-        }
-        if(d.type === 'DRAW_OFFER') {
-            tg.showConfirm("Opponent offered a draw. Accept?", (confirmed) => {
-                if(confirmed) {
+        if(!d || typeof d !== 'object') return;
+        
+        // Handle Commands
+        if(d.type) {
+            switch(d.type) {
+                case 'INFO_SYNC':
+                    const side = d.role === 'blue' ? 'blue' : 'red';
+                    const nameEl = document.getElementById(`${side}-name`);
+                    const iqEl = document.getElementById(`${side}-iq-val`);
+                    const rankEl = document.getElementById(`${side}-rank`);
+                    if(nameEl) nameEl.innerText = d.name;
+                    if(iqEl) iqEl.innerText = d.iq;
+                    if(rankEl) rankEl.innerText = getRank(d.iq);
+                    break;
+                case 'SURRENDER':
+                    gameState.gameOver = true;
+                    gameState.winner = d.winner;
+                    updateScore(myRole === d.winner);
+                    showWinPopup(gameState.winner);
+                    winMsg.innerText = "OPPONENT SURRENDERED!";
+                    break;
+                case 'DRAW_OFFER':
+                    tg.showConfirm("Opponent offered a draw. Accept?", (ok) => {
+                        if(ok && conn && conn.open) {
+                            gameState.gameOver = true;
+                            gameState.winner = 'draw';
+                            conn.send({ type: 'DRAW_ACCEPT' });
+                            updateScore(false, true);
+                            showWinPopup('draw');
+                        }
+                    });
+                    break;
+                case 'DRAW_ACCEPT':
                     gameState.gameOver = true;
                     gameState.winner = 'draw';
-                    if (conn && conn.open) conn.send({ type: 'DRAW_ACCEPT' });
                     updateScore(false, true);
                     showWinPopup('draw');
-                }
-            });
-            return;
-        }
-        if(d.type === 'DRAW_ACCEPT') {
-            gameState.gameOver = true;
-            gameState.winner = 'draw';
-            updateScore(false, true);
-            showWinPopup('draw');
-            return;
-        }
-        if(d.type === 'REMATCH_OFFER') {
-            tg.showConfirm("Opponent requested a rematch. Start new game?", (confirmed) => {
-                if(confirmed) {
-                    if (conn && conn.open) conn.send({ type: 'REMATCH_ACCEPT' });
+                    break;
+                case 'REMATCH_OFFER':
+                    tg.showConfirm("Opponent wants a rematch. Accept?", (ok) => {
+                        if(ok && conn && conn.open) {
+                            conn.send({ type: 'REMATCH_ACCEPT' });
+                            triggerRestart();
+                        }
+                    });
+                    break;
+                case 'REMATCH_ACCEPT':
                     triggerRestart();
-                }
-            });
-            return;
-        }
-        if(d.type === 'REMATCH_ACCEPT') {
-            triggerRestart();
-            return;
-        }
-        if(d.type === "ROOM_FULL"){ showFullRoomPopup(); conn.close(); return; }
-        if(d.type === "CHECK_AVAILABILITY"){
-            if(isRedAssigned){ conn.send({type: "ROOM_FULL"}); }
-            else { isRedAssigned=true; invitePlayerBtn.style.display='none'; isJustConnected=true; updateStatus(); setTimeout(()=> {isJustConnected=false; updateStatus();}, 2000); broadcastState(); }
-            return;
-        }
-        
-        // Handle Game State updates (usually direct object)
-        if (!d.type) {
-            gameState=d; 
-            spectators.forEach(s=>{if(s.open)s.send(gameState)});
-            if(gameState.gameOver) {
-                if(myRole !== 'spectator' && myRole !== null) {
-                    if(gameState.winner === 'draw') updateScore(false, true);
-                    else if(gameState.winner !== myRole) updateScore(false);
-                    else updateScore(true);
-                }
-                showWinPopup(gameState.winner);
+                    break;
+                case 'ROOM_FULL':
+                    showFullRoomPopup();
+                    conn.close();
+                    break;
+                case 'CHECK_AVAILABILITY':
+                    if(isRedAssigned) { conn.send({type: "ROOM_FULL"}); }
+                    else { 
+                        isRedAssigned=true; 
+                        invitePlayerBtn.style.display='none'; 
+                        isJustConnected=true; 
+                        updateStatus(); 
+                        setTimeout(()=> {isJustConnected=false; updateStatus();}, 2000); 
+                        broadcastState(); 
+                    }
+                    break;
             }
-            drawBoard(); updateStatus();
+            return;
         }
+
+        // Handle Game State (if no type property)
+        gameState=d; 
+        spectators.forEach(s=>{if(s.open)s.send(gameState)});
+        if(gameState.gameOver) {
+            if(myRole !== 'spectator' && myRole !== null) {
+                if(gameState.winner === 'draw') updateScore(false, true);
+                else if(gameState.winner !== myRole) updateScore(false);
+                else updateScore(true);
+            }
+            showWinPopup(gameState.winner);
+        }
+        drawBoard(); updateStatus();
     });
 }
 
