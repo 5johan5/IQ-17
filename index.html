@@ -258,7 +258,7 @@ function getValidMoves(startNode) {
                 const angle1 = Math.atan2(p2.y - p1.y, p2.x - p1.x), angle2 = Math.atan2(p3.y - p2.y, p3.x - p2.x);
                 let diff = Math.abs(angle1 - angle2);
                 if (diff > Math.PI) diff = 2 * Math.PI - diff;
-                if ((diff * 180 / Math.PI) > 25.61) return; // Personalised Turn Rule Applied
+                if ((diff * 180 / Math.PI) > 25.61) return; 
             }
             if (!visited.has(neighbor)) {
                 const targetPiece = gameState.pieces[neighbor];
@@ -332,23 +332,19 @@ function setupConnection(){
             updateScore(true);
             showWinPopup(gameState.winner);
             winMsg.innerText = "OPPONENT LEFT - YOU WIN!";
+            winMsg.style.color = "#00AD11";
         }
     });
 
     conn.on('data',d=>{
         if(!d || typeof d !== 'object') return;
-        
-        // Handle Commands
         if(d.type) {
             switch(d.type) {
                 case 'INFO_SYNC':
                     const side = d.role === 'blue' ? 'blue' : 'red';
-                    const nameEl = document.getElementById(`${side}-name`);
-                    const iqEl = document.getElementById(`${side}-iq-val`);
-                    const rankEl = document.getElementById(`${side}-rank`);
-                    if(nameEl) nameEl.innerText = d.name;
-                    if(iqEl) iqEl.innerText = d.iq;
-                    if(rankEl) rankEl.innerText = getRank(d.iq);
+                    document.getElementById(`${side}-name`).innerText = d.name;
+                    document.getElementById(`${side}-iq-val`).innerText = d.iq;
+                    document.getElementById(`${side}-rank`).innerText = getRank(d.iq);
                     break;
                 case 'SURRENDER':
                     gameState.gameOver = true;
@@ -375,7 +371,7 @@ function setupConnection(){
                     showWinPopup('draw');
                     break;
                 case 'REMATCH_OFFER':
-                    tg.showConfirm("Opponent wants a rematch. Accept?", (ok) => {
+                    tg.showConfirm("Opponent requested a rematch. Start new game?", (ok) => {
                         if(ok && conn && conn.open) {
                             conn.send({ type: 'REMATCH_ACCEPT' });
                             triggerRestart();
@@ -391,20 +387,11 @@ function setupConnection(){
                     break;
                 case 'CHECK_AVAILABILITY':
                     if(isRedAssigned) { conn.send({type: "ROOM_FULL"}); }
-                    else { 
-                        isRedAssigned=true; 
-                        invitePlayerBtn.style.display='none'; 
-                        isJustConnected=true; 
-                        updateStatus(); 
-                        setTimeout(()=> {isJustConnected=false; updateStatus();}, 2000); 
-                        broadcastState(); 
-                    }
+                    else { isRedAssigned=true; invitePlayerBtn.style.display='none'; isJustConnected=true; updateStatus(); setTimeout(()=> {isJustConnected=false; updateStatus();}, 2000); broadcastState(); }
                     break;
             }
             return;
         }
-
-        // Handle Game State (if no type property)
         gameState=d; 
         spectators.forEach(s=>{if(s.open)s.send(gameState)});
         if(gameState.gameOver) {
