@@ -25,13 +25,18 @@
         .btn { padding: 12px 24px; background: #0088cc; color: white; border: none; border-radius: 8px; cursor: pointer; margin: 5px; font-weight: bold; font-size: 16px; }
         #game-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 100; flex-direction: column; justify-content: center; align-items: center; color: white; }
         .popup-box { background: white; padding: 30px; border-radius: 15px; color: #333; width: 80%; max-width: 300px; }
-        #persistent-score { position: absolute; top: 10px; right: 10px; z-index: 60; background: white; padding: 5px 12px; border-radius: 20px; border: 1px solid #ccc; font-weight: bold; color: #0088cc; font-size: 14px; }
+        #scoreboard { position: absolute; top: 10px; width: 100%; display: flex; justify-content: space-between; padding: 0 10px; box-sizing: border-box; pointer-events: none; z-index: 60; }
+        .score-pill { background: white; padding: 5px 12px; border-radius: 20px; border: 1px solid #ccc; font-weight: bold; font-size: 11px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); color: #333; }
+        .my-pill { color: #0088cc; border-color: #0088cc; }
         #iq-change-display { font-size: 20px; font-weight: bold; margin: 15px 0; display: block; }
     </style>
 </head>
 <body>
 
-    <div id="persistent-score">IQ: <span id="score-val">30</span></div>
+    <div id="scoreboard">
+        <div id="my-score-pill" class="score-pill my-pill">YOU: <span id="my-name">Player</span> (IQ: <span id="score-val">30</span>)</div>
+        <div id="opp-score-pill" class="score-pill" style="display:none">OPP: <span id="opp-name">...</span> (IQ: <span id="opp-iq">?</span>)</div>
+    </div>
 
     <div id="game-overlay">
         <div class="popup-box">
@@ -61,14 +66,18 @@
 const tg = window.Telegram.WebApp;
 tg.expand();
 
-// --- PERSISTENT IQ LOGIC ---
+const myTelegramName = tg.initDataUnsafe.user ? tg.initDataUnsafe.user.first_name : "Player";
+document.getElementById('my-name').innerText = myTelegramName;
+
+// --- FIXED IQ SCORE LOGIC ---
 let userScore = 30;
 
 function loadScore() {
-    tg.CloudStorage.getItem('player_iq_v3', (err, value) => {
+    tg.CloudStorage.getItem('player_iq_final_v1', (err, value) => {
         if (!err && value) userScore = parseInt(value);
         else userScore = 30;
         document.getElementById('score-val').innerText = userScore;
+        syncMyInfo();
     });
 }
 
@@ -77,25 +86,36 @@ function updateScore(isWin) {
     const display = document.getElementById('iq-change-display');
     
     if (isWin) {
+        // WINNING: Increases until caps
         if (userScore < 50) change = 10;
         else if (userScore < 70) change = 5;
         else if (userScore < 85) change = 3;
         else if (userScore < 100) change = 1;
+        
         userScore = Math.min(100, userScore + change);
         display.innerText = `+${change} IQ Gained!`;
         display.style.color = "#00AD11";
     } else {
+        // LOSING: Specific ranges for decrease
         if (userScore <= 50) change = 10;
         else if (userScore <= 70) change = 15;
         else if (userScore <= 85) change = 20;
         else if (userScore <= 100) change = 25;
+        
         userScore = Math.max(0, userScore - change);
         display.innerText = `-${change} IQ Lost`;
         display.style.color = "#DC2626";
     }
 
     document.getElementById('score-val').innerText = userScore;
-    tg.CloudStorage.setItem('player_iq_v3', userScore.toString());
+    tg.CloudStorage.setItem('player_iq_final_v1', userScore.toString());
+    syncMyInfo();
+}
+
+function syncMyInfo() {
+    if (conn && conn.open) {
+        conn.send({ type: 'INFO_SYNC', name: myTelegramName, iq: userScore });
+    }
 }
 
 loadScore();
@@ -177,7 +197,6 @@ function getValidMoves(startNode) {
                     const angle1 = Math.atan2(p2.y - p1.y, p2.x - p1.x), angle2 = Math.atan2(p3.y - p2.y, p3.x - p2.x);
                     let diff = Math.abs(angle1 - angle2);
                     if (diff > Math.PI) diff = 2 * Math.PI - diff;
-                    // The core movement rule:
                     if ((diff * 180 / Math.PI) > 17) return; 
                 }
             }
@@ -220,11 +239,13 @@ function handleInteraction(id) {
                 gameState.winner = gameState.turn; 
                 
                 // --- SCORE CALCULATION ---
-                if (myRole === gameState.turn) updateScore(true);
-                else if (myRole !== null && myRole !== 'spectator') updateScore(false);
-                else document.getElementById('iq-change-display').innerText = "Spectator View";
+                if (myRole === gameState.turn) {
+                    updateScore(true); // I won
+                } else if (myRole !== null && myRole !== 'spectator') {
+                    updateScore(false); // I lost
+                }
 
-                showWinPopup(gameState.turn);
+                showWinPopup(gameState.winner);
             }
             gameState.lastMove = {from: gameState.selectedNode, to: id};
             gameState.pieces[id] = movingPiece; delete gameState.pieces[gameState.selectedNode];
@@ -247,15 +268,11 @@ function toggleUI(f=false){
 }
 
 function triggerRestart(){if(myRole==='spectator')return;gameState=initialGameState();overlay.style.display='none';if(conn&&conn.open)conn.send("RESET_GAME");broadcastState();drawBoard();updateStatus()}
-function broadcastState(){if(conn&&conn.open)conn.send(gameState);spectators.forEach(s=>{if(s.open)s.send(gameState)})}
+function broadcastState(){if(conn&&conn.open) { conn.send(gameState); syncMyInfo(); } spectators.forEach(s=>{if(s.open)s.send(gameState)})}
 
 function updateStatus(){
     if(gameState.gameOver)return;
-    if(isJustConnected){
-        statusDiv.innerText = "CONNECTED";
-        statusDiv.style.color = "#00AD11";
-        return;
-    }
+    if(isJustConnected){ statusDiv.innerText = "CONNECTED"; statusDiv.style.color = "#00AD11"; return; }
     let prefix = (myRole==='spectator'?"LIVE: ":"");
     if (myRole === 'blue' && !isRedAssigned) prefix = "SOLO: ";
     statusDiv.innerText=prefix+gameState.turn.toUpperCase()+" TURN";
@@ -276,33 +293,35 @@ function inviteTelegramFriend(t){const l=`https://t.me/Iq17game_bot/IQ17?startap
 
 function setupConnection(){
     conn.on('open',()=>{
-        if(myRole==='red'){ 
-            conn.send("CHECK_AVAILABILITY"); 
-            invitePlayerBtn.style.display = 'none'; 
-            isJustConnected = true;
-            updateStatus();
-            setTimeout(() => { isJustConnected = false; updateStatus(); }, 2000);
-        }
+        syncMyInfo();
+        if(myRole==='red'){ conn.send("CHECK_AVAILABILITY"); invitePlayerBtn.style.display='none'; isJustConnected=true; updateStatus(); setTimeout(()=> {isJustConnected=false; updateStatus();}, 2000); }
     });
     conn.on('data',d=>{
+        if(d.type === 'INFO_SYNC') {
+            document.getElementById('opp-score-pill').style.display = 'block';
+            document.getElementById('opp-name').innerText = d.name;
+            document.getElementById('opp-iq').innerText = d.iq;
+            return;
+        }
         if(d==="ROOM_FULL"){ showFullRoomPopup(); conn.close(); return; }
         if(d==="CHECK_AVAILABILITY"){
             if(isRedAssigned){ conn.send("ROOM_FULL"); }
-            else { 
-                isRedAssigned = true; 
-                invitePlayerBtn.style.display = 'none';
-                isJustConnected = true;
-                updateStatus();
-                setTimeout(() => { isJustConnected = false; updateStatus(); }, 2000);
-                broadcastState(); 
-            }
+            else { isRedAssigned=true; invitePlayerBtn.style.display='none'; isJustConnected=true; updateStatus(); setTimeout(()=> {isJustConnected=false; updateStatus();}, 2000); broadcastState(); }
             return;
         }
-        if(d==="SYNC"){ broadcastState(); return; }
         if(d==="RESET_GAME"){ gameState=initialGameState(); overlay.style.display='none'; drawBoard(); updateStatus(); return; }
         gameState=d;
         spectators.forEach(s=>{if(s.open)s.send(gameState)});
-        if(gameState.gameOver)showWinPopup(gameState.winner);
+        
+        // --- DETECT REMOTE GAME OVER ---
+        if(gameState.gameOver) {
+            // If the broadcast says game over, check if I lost
+            if(myRole !== 'spectator' && myRole !== null) {
+                if(gameState.winner !== myRole) updateScore(false);
+                else updateScore(true); // In case host wins, sync local score
+            }
+            showWinPopup(gameState.winner);
+        }
         drawBoard(); updateStatus();
     });
 }
@@ -319,10 +338,7 @@ peer.on('open',id=>{
 peer.on('connection',c=>{
     if(c.metadata&&c.metadata.type==='spectator'){ spectators.push(c); c.on('open',()=>c.send(gameState)); }
     else{
-        if(myRole === 'blue' && isRedAssigned) { 
-            c.on('open', () => c.send("ROOM_FULL"));
-            return;
-        }
+        if(myRole === 'blue' && isRedAssigned) { c.on('open', () => c.send("ROOM_FULL")); return; }
         conn=c; setupConnection();
     }
 });
