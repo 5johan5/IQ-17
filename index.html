@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -26,12 +27,12 @@
         #game-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 100; flex-direction: column; justify-content: center; align-items: center; color: white; }
         .popup-box { background: white; padding: 30px; border-radius: 15px; color: #333; width: 80%; max-width: 300px; }
         #scoreboard { position: absolute; top: 5px; width: 100%; padding: 0 5px; box-sizing: border-box; pointer-events: none; z-index: 60; display: flex; justify-content: space-between; }
-        .score-pill { background: rgba(255, 255, 255, 0.95); padding: 6px 10px; border-radius: 10px; border: 2px solid #ccc; width: 110px; box-shadow: 0 2px 5px rgba(0,0,0,0.15); display: flex; flex-direction: column; align-items: center; }
+        .score-pill { background: rgba(255, 255, 255, 0.9); padding: 4px 8px; border-radius: 8px; border: 1.5px solid #ccc; width: 100px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; flex-direction: column; align-items: center; }
         .blue-side { border-color: #2563EB; color: #2563EB; }
         .red-side { border-color: #DC2626; color: #DC2626; }
-        .p-name { font-weight: 900; font-size: 13px; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; margin-bottom: 2px; }
-        .p-iq { font-size: 11px; font-weight: 800; letter-spacing: 0.5px; }
-        .p-rank { font-size: 9px; font-weight: 600; font-style: italic; opacity: 0.8; margin-top: 1px; }
+        .p-name { font-weight: 800; font-size: 10px; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; }
+        .p-iq { font-size: 9px; font-weight: bold; }
+        .p-rank { font-size: 8px; font-style: italic; opacity: 0.9; }
         #iq-change-display { font-size: 18px; font-weight: bold; margin: 15px 0; display: block; }
     </style>
 </head>
@@ -70,7 +71,7 @@
             <div id="menu">
                 <button id="invite-player-btn" class="btn" onclick="inviteTelegramFriend('player')">Invite Friend</button>
                 <button id="invite-spec-btn" class="btn" style="background:#555" onclick="inviteTelegramFriend('spectator')">Spectators</button>
-                <br><br>
+                <br>
                 <button id="surrender-btn" class="btn" style="background:#DC2626" onclick="handleSurrender()">Surrender</button>
                 <button id="draw-btn" class="btn" style="background:#f39c12" onclick="handleDrawRequest()">Offer Draw</button>
             </div>
@@ -323,18 +324,8 @@ function drawBoard(){
     roads.forEach(p=>{
         ctx.beginPath();
         const isRestricted = (p[0] === 38 && p[1] === 28) || (p[0] === 28 && p[1] === 38) || (p[0] === 8 && p[1] === 16) || (p[0] === 16 && p[1] === 8);
-        const isLine38To28 = (p[0] === 38 && p[1] === 28) || (p[0] === 28 && p[1] === 38);
-        
-        if(isLine38To28) { 
-            ctx.setLineDash([5, 5]); 
-            ctx.strokeStyle = '#DC2626'; // Changed to Red
-        } else if(isRestricted) { 
-            ctx.setLineDash([5, 5]); 
-            ctx.strokeStyle = '#0088cc'; 
-        } else { 
-            ctx.setLineDash([]); 
-            ctx.strokeStyle = '#7a869a'; 
-        }
+        if(isRestricted) { ctx.setLineDash([5, 5]); ctx.strokeStyle = '#0088cc'; } 
+        else { ctx.setLineDash([]); ctx.strokeStyle = '#7a869a'; }
         ctx.lineWidth=2.5;
         ctx.moveTo(nodes[p[0]].x,nodes[p[0]].y); ctx.lineTo(nodes[p[1]].x,nodes[p[1]].y); ctx.stroke();
     });
@@ -347,7 +338,8 @@ function drawBoard(){
         if(possible.includes(numId)){ctx.beginPath();ctx.arc(n.x,n.y,20,0,7);ctx.fillStyle='rgba(255,160,0,0.6)';ctx.fill();ctx.strokeStyle='rgba(180,120,0,0.7)';ctx.lineWidth=2;ctx.stroke()}
         if(p){ctx.shadowBlur=12;ctx.shadowColor=p.team=='blue'?'rgba(37,99,235,0.7)':'rgba(220,38,38,0.7)';}else{ctx.shadowBlur=0;}
         if(p&&p.type==='king'){drawHex(n.x,n.y,20);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle=p.team=='blue'?'#2563EB':'#DC2626';ctx.lineWidth=3;ctx.stroke()}else{ctx.beginPath();ctx.arc(n.x,n.y,16,0,7);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle=p?(p.team=='blue'?'#2563EB':'#DC2626'):'#c1c7d0';ctx.lineWidth=2;ctx.stroke()}
-        if(p){ctx.fillStyle=p.team=='blue'?'#2563EB':'#DC2626';ctx.font='bold 18px Arial';ctx.textAlign='center';let icon=p.type=='king'?'👑':p.type=='triangle'?'▲':p.type=='square'?'■':'X';ctx.fillText(icon,n.x,n.y+(p.type=='king'?7:6))}<br>        ctx.shadowBlur=0;
+        if(p){ctx.fillStyle=p.team=='blue'?'#2563EB':'#DC2626';ctx.font='bold 18px Arial';ctx.textAlign='center';let icon=p.type=='king'?'👑':p.type=='triangle'?'▲':p.type=='square'?'■':'X';ctx.fillText(icon,n.x,n.y+(p.type=='king'?7:6))}
+        ctx.shadowBlur=0;
     }
 }
 function drawHex(x,y,size){ctx.beginPath();for(let i=0;i<6;i++){ctx.lineTo(x+size*Math.cos(i*Math.PI/3),y+size*Math.sin(i*Math.PI/3))}ctx.closePath()}
