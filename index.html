@@ -26,14 +26,14 @@
         #game-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 100; flex-direction: column; justify-content: center; align-items: center; color: white; }
         .popup-box { background: white; padding: 30px; border-radius: 15px; color: #333; width: 80%; max-width: 300px; }
         
-        /* Split Scoreboard Style */
-        #scoreboard { position: absolute; top: 10px; width: 100%; display: flex; justify-content: space-between; padding: 0 10px; box-sizing: border-box; pointer-events: none; z-index: 60; }
-        .score-pill { background: white; padding: 8px 12px; border-radius: 12px; border: 2px solid #ccc; width: 42%; box-shadow: 0 2px 5px rgba(0,0,0,0.1); display: flex; flex-direction: column; align-items: center; }
+        /* Compact Corner Scoreboard */
+        #scoreboard { position: absolute; top: 5px; width: 100%; padding: 0 5px; box-sizing: border-box; pointer-events: none; z-index: 60; display: flex; justify-content: space-between; }
+        .score-pill { background: rgba(255, 255, 255, 0.9); padding: 4px 8px; border-radius: 8px; border: 1.5px solid #ccc; width: 100px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; flex-direction: column; align-items: center; }
         .blue-side { border-color: #2563EB; color: #2563EB; }
         .red-side { border-color: #DC2626; color: #DC2626; }
-        .p-name { font-weight: 900; font-size: 13px; text-transform: uppercase; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; width: 100%; }
-        .p-iq { font-size: 11px; font-weight: bold; margin-top: 2px; }
-        .p-rank { font-size: 10px; font-style: italic; opacity: 0.8; margin-top: 1px; }
+        .p-name { font-weight: 800; font-size: 10px; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; }
+        .p-iq { font-size: 9px; font-weight: bold; }
+        .p-rank { font-size: 8px; font-style: italic; opacity: 0.9; }
         
         #iq-change-display { font-size: 20px; font-weight: bold; margin: 15px 0; display: block; }
     </style>
@@ -42,12 +42,12 @@
 
     <div id="scoreboard">
         <div id="blue-pill" class="score-pill blue-side">
-            <span id="blue-name" class="p-name">Waiting...</span>
+            <span id="blue-name" class="p-name">BLUE</span>
             <span class="p-iq">IQ: <span id="blue-iq-val">30</span></span>
             <span id="blue-rank" class="p-rank">Initiate</span>
         </div>
         <div id="red-pill" class="score-pill red-side">
-            <span id="red-name" class="p-name">No Opponent</span>
+            <span id="red-name" class="p-name">RED</span>
             <span class="p-iq">IQ: <span id="red-iq-val">?</span></span>
             <span id="red-rank" class="p-rank">---</span>
         </div>
@@ -90,7 +90,6 @@ function getRank(iq) {
     return "Conqueror";
 }
 
-// --- IQ SCORE LOGIC ---
 let userScore = 30;
 
 function loadScore() {
