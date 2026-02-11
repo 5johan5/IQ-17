@@ -19,10 +19,10 @@
         }
         #ui-container { position: fixed; bottom: 0; left: 0; width: 100%; background: #fff; transition: transform 0.3s ease; z-index: 50; box-shadow: 0 -2px 10px rgba(0,0,0,0.1); }
         #ui-container.hidden { transform: translateY(140px); }
-        #ui { padding: 10px; background: #fff; height: 140px; box-sizing: border-box; }
+        #ui { padding: 10px; background: #fff; height: 140px; box-sizing: border-box; overflow-y: auto; }
         #pull-tab { position: absolute; top: -30px; left: 50%; transform: translateX(-50%); background: #fff; border: 1px solid #ccc; border-bottom: none; padding: 5px 20px; border-radius: 10px 10px 0 0; cursor: pointer; font-size: 12px; font-weight: bold; color: #0088cc; }
         #status { position: absolute; top: -65px; left: 0; width: 100%; font-size: 22px; font-weight: 900; text-transform: uppercase; pointer-events: none; text-shadow: 0px 0px 5px rgba(255,255,255,0.8); }
-        .btn { padding: 12px 24px; background: #0088cc; color: white; border: none; border-radius: 8px; cursor: pointer; margin: 5px; font-weight: bold; font-size: 16px; }
+        .btn { padding: 10px 18px; background: #0088cc; color: white; border: none; border-radius: 8px; cursor: pointer; margin: 3px; font-weight: bold; font-size: 14px; }
         #game-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 100; flex-direction: column; justify-content: center; align-items: center; color: white; }
         .popup-box { background: white; padding: 30px; border-radius: 15px; color: #333; width: 80%; max-width: 300px; }
         
@@ -72,6 +72,9 @@
             <div id="menu">
                 <button id="invite-player-btn" class="btn" onclick="inviteTelegramFriend('player')">Invite Friend</button>
                 <button id="invite-spec-btn" class="btn" style="background:#555" onclick="inviteTelegramFriend('spectator')">Spectators</button>
+                <br>
+                <button id="surrender-btn" class="btn" style="background:#DC2626" onclick="handleSurrender()">Surrender</button>
+                <button id="draw-btn" class="btn" style="background:#f39c12" onclick="handleDrawRequest()">Offer Draw</button>
             </div>
         </div>
     </div>
@@ -112,17 +115,14 @@ function updateScoreboardDisplay() {
     }
 }
 
-function updateScore(isWin) {
+function updateScore(isWin, isDraw = false) {
     const display = document.getElementById('iq-change-display');
-    
-    // --- SOLO MODE CHECK ---
-    // If I am host (blue) and no red is assigned, OR if I am guest but not connected to host
     const isSolo = (myRole === 'blue' && !isRedAssigned);
     
-    if (isSolo) {
-        display.innerText = "Solo Match: No IQ Change";
+    if (isSolo || isDraw) {
+        display.innerText = isDraw ? "Match Draw: No IQ Change" : "Solo Match: No IQ Change";
         display.style.color = "#888";
-        return; // Exit without changing points
+        return;
     }
 
     let change = 0;
@@ -146,6 +146,26 @@ function updateScore(isWin) {
     updateScoreboardDisplay();
     tg.CloudStorage.setItem('player_iq_final_v1', userScore.toString());
     syncMyInfo();
+}
+
+// --- SURRENDER & DRAW LOGIC ---
+function handleSurrender() {
+    if (gameState.gameOver || !isRedAssigned) return;
+    if (confirm("Are you sure you want to surrender? This counts as a loss.")) {
+        gameState.gameOver = true;
+        gameState.winner = (myRole === 'blue' ? 'red' : 'blue');
+        if (conn && conn.open) conn.send({ type: 'SURRENDER', winner: gameState.winner });
+        updateScore(false);
+        showWinPopup(gameState.winner);
+    }
+}
+
+function handleDrawRequest() {
+    if (gameState.gameOver || !isRedAssigned) return;
+    if (conn && conn.open) {
+        conn.send({ type: 'DRAW_OFFER' });
+        tg.showAlert("Draw offer sent to opponent.");
+    }
 }
 
 function syncMyInfo() {
@@ -186,7 +206,7 @@ let peer = new Peer({ config: {'iceServers': [{ 'urls': 'stun:stun.l.google.com:
 let conn = null, spectators = [], myRole = null, isRedAssigned = false, isJustConnected = false;
 
 const initialGameState = () => ({
-    turn: 'blue', selectedNode: null, lastMove: null, gameOver: false,
+    turn: 'blue', selectedNode: null, lastMove: null, gameOver: false, winner: null,
     pieces: {
         0:{team:'blue',type:'king'}, 3:{team:'blue',type:'triangle'}, 4:{team:'blue',type:'triangle'},
         5:{team:'blue',type:'square'}, 6:{team:'blue',type:'square'}, 7:{team:'blue',type:'square'}, 8:{team:'blue',type:'square'},
@@ -280,7 +300,7 @@ function toggleUI(f=false){if(f || !uiContainer.classList.contains('hidden')){ u
 function triggerRestart(){if(myRole==='spectator')return;gameState=initialGameState();overlay.style.display='none';if(conn&&conn.open)conn.send("RESET_GAME");broadcastState();drawBoard();updateStatus()}
 function broadcastState(){if(conn&&conn.open) { conn.send(gameState); syncMyInfo(); } spectators.forEach(s=>{if(s.open)s.send(gameState)})}
 function updateStatus(){if(gameState.gameOver)return;if(isJustConnected){ statusDiv.innerText = "CONNECTED"; statusDiv.style.color = "#00AD11"; return; }let prefix = (myRole==='spectator'?"LIVE: ":"");if (myRole === 'blue' && !isRedAssigned) prefix = "SOLO: ";statusDiv.innerText=prefix+gameState.turn.toUpperCase()+" TURN";statusDiv.style.color=gameState.turn==='blue'?'#2563EB':'#DC2626';}
-function showWinPopup(w){winMsg.innerText=w.toUpperCase()+" WINS!";winMsg.style.color=w==='blue'?'#2563EB':'#DC2626';document.getElementById('popup-controls').style.display='block';overlay.style.display='flex'}
+function showWinPopup(w){if(w==='draw'){winMsg.innerText="MATCH DRAW!";winMsg.style.color="#888";}else{winMsg.innerText=w.toUpperCase()+" WINS!";winMsg.style.color=w==='blue'?'#2563EB':'#DC2626';}document.getElementById('popup-controls').style.display='block';overlay.style.display='flex'}
 function showFullRoomPopup(){winMsg.innerText="ROOM FULL - SPECTATING";winMsg.style.color="#333";winMsg.style.fontSize="18px";document.getElementById('popup-controls').style.display='none';overlay.style.display='flex';}
 function inviteTelegramFriend(t){const l=`https://t.me/Iq17game_bot/IQ17?startapp=${t==='spectator'?'spec_'+peer.id:peer.id}`;tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(l)}&text=${encodeURIComponent(t==='spectator'?"Watch live!":"Challenge me!")}`)}
 
@@ -289,12 +309,48 @@ function setupConnection(){
         syncMyInfo();
         if(myRole==='red'){ conn.send("CHECK_AVAILABILITY"); invitePlayerBtn.style.display='none'; isJustConnected=true; updateStatus(); setTimeout(()=> {isJustConnected=false; updateStatus();}, 2000); }
     });
+    
+    conn.on('close', () => {
+        if(!gameState.gameOver && isRedAssigned) {
+            gameState.gameOver = true;
+            gameState.winner = myRole;
+            updateScore(true);
+            showWinPopup(gameState.winner);
+            winMsg.innerText = "OPPONENT LEFT - YOU WIN!";
+        }
+    });
+
     conn.on('data',d=>{
         if(d.type === 'INFO_SYNC') {
             const side = d.role === 'blue' ? 'blue' : 'red';
             document.getElementById(`${side}-name`).innerText = d.name;
             document.getElementById(`${side}-iq-val`).innerText = d.iq;
             document.getElementById(`${side}-rank`).innerText = getRank(d.iq);
+            return;
+        }
+        if(d.type === 'SURRENDER') {
+            gameState.gameOver = true;
+            gameState.winner = d.winner;
+            updateScore(myRole === d.winner);
+            showWinPopup(gameState.winner);
+            winMsg.innerText = "OPPONENT SURRENDERED!";
+            return;
+        }
+        if(d.type === 'DRAW_OFFER') {
+            if(confirm("Opponent offered a draw. Accept?")) {
+                gameState.gameOver = true;
+                gameState.winner = 'draw';
+                conn.send({ type: 'DRAW_ACCEPT' });
+                updateScore(false, true);
+                showWinPopup('draw');
+            }
+            return;
+        }
+        if(d.type === 'DRAW_ACCEPT') {
+            gameState.gameOver = true;
+            gameState.winner = 'draw';
+            updateScore(false, true);
+            showWinPopup('draw');
             return;
         }
         if(d==="ROOM_FULL"){ showFullRoomPopup(); conn.close(); return; }
@@ -307,7 +363,8 @@ function setupConnection(){
         gameState=d; spectators.forEach(s=>{if(s.open)s.send(gameState)});
         if(gameState.gameOver) {
             if(myRole !== 'spectator' && myRole !== null) {
-                if(gameState.winner !== myRole) updateScore(false);
+                if(gameState.winner === 'draw') updateScore(false, true);
+                else if(gameState.winner !== myRole) updateScore(false);
                 else updateScore(true);
             }
             showWinPopup(gameState.winner);
