@@ -25,17 +25,32 @@
         .btn { padding: 12px 24px; background: #0088cc; color: white; border: none; border-radius: 8px; cursor: pointer; margin: 5px; font-weight: bold; font-size: 16px; }
         #game-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 100; flex-direction: column; justify-content: center; align-items: center; color: white; }
         .popup-box { background: white; padding: 30px; border-radius: 15px; color: #333; width: 80%; max-width: 300px; }
+        
+        /* Split Scoreboard Style */
         #scoreboard { position: absolute; top: 10px; width: 100%; display: flex; justify-content: space-between; padding: 0 10px; box-sizing: border-box; pointer-events: none; z-index: 60; }
-        .score-pill { background: white; padding: 5px 12px; border-radius: 20px; border: 1px solid #ccc; font-weight: bold; font-size: 11px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); color: #333; }
-        .my-pill { color: #0088cc; border-color: #0088cc; }
+        .score-pill { background: white; padding: 8px 12px; border-radius: 12px; border: 2px solid #ccc; width: 42%; box-shadow: 0 2px 5px rgba(0,0,0,0.1); display: flex; flex-direction: column; align-items: center; }
+        .blue-side { border-color: #2563EB; color: #2563EB; }
+        .red-side { border-color: #DC2626; color: #DC2626; }
+        .p-name { font-weight: 900; font-size: 13px; text-transform: uppercase; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; width: 100%; }
+        .p-iq { font-size: 11px; font-weight: bold; margin-top: 2px; }
+        .p-rank { font-size: 10px; font-style: italic; opacity: 0.8; margin-top: 1px; }
+        
         #iq-change-display { font-size: 20px; font-weight: bold; margin: 15px 0; display: block; }
     </style>
 </head>
 <body>
 
     <div id="scoreboard">
-        <div id="my-score-pill" class="score-pill my-pill">YOU: <span id="my-name">Player</span> (IQ: <span id="score-val">30</span>)</div>
-        <div id="opp-score-pill" class="score-pill" style="display:none">OPP: <span id="opp-name">...</span> (IQ: <span id="opp-iq">?</span>)</div>
+        <div id="blue-pill" class="score-pill blue-side">
+            <span id="blue-name" class="p-name">Waiting...</span>
+            <span class="p-iq">IQ: <span id="blue-iq-val">30</span></span>
+            <span id="blue-rank" class="p-rank">Initiate</span>
+        </div>
+        <div id="red-pill" class="score-pill red-side">
+            <span id="red-name" class="p-name">No Opponent</span>
+            <span class="p-iq">IQ: <span id="red-iq-val">?</span></span>
+            <span id="red-rank" class="p-rank">---</span>
+        </div>
     </div>
 
     <div id="game-overlay">
@@ -67,58 +82,68 @@ const tg = window.Telegram.WebApp;
 tg.expand();
 
 const myTelegramName = tg.initDataUnsafe.user ? tg.initDataUnsafe.user.first_name : "Player";
-document.getElementById('my-name').innerText = myTelegramName;
 
-// --- FIXED IQ SCORE LOGIC ---
+function getRank(iq) {
+    if (iq <= 50) return "Initiate";
+    if (iq <= 70) return "Strategist";
+    if (iq <= 85) return "Mastermind";
+    return "Conqueror";
+}
+
+// --- IQ SCORE LOGIC ---
 let userScore = 30;
 
 function loadScore() {
     tg.CloudStorage.getItem('player_iq_final_v1', (err, value) => {
         if (!err && value) userScore = parseInt(value);
         else userScore = 30;
-        document.getElementById('score-val').innerText = userScore;
+        updateScoreboardDisplay();
         syncMyInfo();
     });
+}
+
+function updateScoreboardDisplay() {
+    if (myRole === 'blue') {
+        document.getElementById('blue-name').innerText = myTelegramName;
+        document.getElementById('blue-iq-val').innerText = userScore;
+        document.getElementById('blue-rank').innerText = getRank(userScore);
+    } else if (myRole === 'red') {
+        document.getElementById('red-name').innerText = myTelegramName;
+        document.getElementById('red-iq-val').innerText = userScore;
+        document.getElementById('red-rank').innerText = getRank(userScore);
+    }
 }
 
 function updateScore(isWin) {
     let change = 0;
     const display = document.getElementById('iq-change-display');
-    
     if (isWin) {
-        // WINNING: Increases until caps
         if (userScore < 50) change = 10;
         else if (userScore < 70) change = 5;
         else if (userScore < 85) change = 3;
         else if (userScore < 100) change = 1;
-        
         userScore = Math.min(100, userScore + change);
         display.innerText = `+${change} IQ Gained!`;
         display.style.color = "#00AD11";
     } else {
-        // LOSING: Specific ranges for decrease
         if (userScore <= 50) change = 10;
         else if (userScore <= 70) change = 15;
         else if (userScore <= 85) change = 20;
         else if (userScore <= 100) change = 25;
-        
         userScore = Math.max(0, userScore - change);
         display.innerText = `-${change} IQ Lost`;
         display.style.color = "#DC2626";
     }
-
-    document.getElementById('score-val').innerText = userScore;
+    updateScoreboardDisplay();
     tg.CloudStorage.setItem('player_iq_final_v1', userScore.toString());
     syncMyInfo();
 }
 
 function syncMyInfo() {
     if (conn && conn.open) {
-        conn.send({ type: 'INFO_SYNC', name: myTelegramName, iq: userScore });
+        conn.send({ type: 'INFO_SYNC', name: myTelegramName, iq: userScore, role: myRole });
     }
 }
-
-loadScore();
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
@@ -131,7 +156,6 @@ const invitePlayerBtn = document.getElementById('invite-player-btn');
 
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight - 140;
-
 const scaleX = canvas.width / 400;
 const scaleY = canvas.height / 700;
 
@@ -163,7 +187,6 @@ const initialGameState = () => ({
         31:{team:'red',type:'x'}, 32:{team:'red',type:'x'}, 33:{team:'red',type:'x'}, 34:{team:'red',type:'x'}
     }
 });
-
 let gameState = initialGameState();
 
 function getValidMoves(startNode) {
@@ -174,12 +197,10 @@ function getValidMoves(startNode) {
     const maxDist = isSpecialPiece ? 3 : 1; 
     let queue = [{id: startNode, dist: 0, lastNode: null}];
     visited.set(startNode, 0);
-
     while (queue.length > 0) {
         let current = queue.shift();
         if (current.dist >= maxDist) continue;
         let neighbors = roads.filter(r => r.includes(current.id)).map(r => r[0] === current.id ? r[1] : r[0]);
-
         neighbors.forEach(neighbor => {
             if (neighbor === 0 || neighbor === 43) {
                 const targetPiece = gameState.pieces[neighbor];
@@ -188,7 +209,6 @@ function getValidMoves(startNode) {
                     if (isEnemyChamber) { if (!targetPiece || targetPiece.team === piece.team) return; } else { return; }
                 } else { if (targetPiece && targetPiece.team === piece.team) return; }
             }
-
             if (isSpecialPiece && current.lastNode !== null) {
                 const pairMatch = (a, b) => (startNode === a && neighbor === b) || (startNode === b && neighbor === a);
                 const isSpecialSituation = pairMatch(28, 38) || pairMatch(16, 8);
@@ -200,7 +220,6 @@ function getValidMoves(startNode) {
                     if ((diff * 180 / Math.PI) > 17) return; 
                 }
             }
-
             if (!visited.has(neighbor)) {
                 const targetPiece = gameState.pieces[neighbor];
                 if (piece.type === 'x') {
@@ -227,7 +246,6 @@ function handleInteraction(id) {
     const isHostSolo = (myRole === 'blue' && !isRedAssigned);
     const isYourTurn = (myRole && gameState.turn === myRole);
     if (!isYourTurn && !isHostSolo) return;
-
     const target = gameState.pieces[id];
     if (target && target.team === gameState.turn) {
         gameState.selectedNode = id;
@@ -235,16 +253,9 @@ function handleInteraction(id) {
         if (getValidMoves(gameState.selectedNode).includes(id)) {
             const movingPiece = gameState.pieces[gameState.selectedNode];
             if ((target && target.type === 'king') || (movingPiece.type === 'king' && ((movingPiece.team === 'blue' && id === 43) || (movingPiece.team === 'red' && id === 0)))) {
-                gameState.gameOver = true; 
-                gameState.winner = gameState.turn; 
-                
-                // --- SCORE CALCULATION ---
-                if (myRole === gameState.turn) {
-                    updateScore(true); // I won
-                } else if (myRole !== null && myRole !== 'spectator') {
-                    updateScore(false); // I lost
-                }
-
+                gameState.gameOver = true; gameState.winner = gameState.turn; 
+                if (myRole === gameState.turn) updateScore(true);
+                else if (myRole !== null && myRole !== 'spectator') updateScore(false);
                 showWinPopup(gameState.winner);
             }
             gameState.lastMove = {from: gameState.selectedNode, to: id};
@@ -260,35 +271,12 @@ function drawBoard(){ctx.clearRect(0,0,canvas.width,canvas.height);ctx.strokeSty
 if(p){ctx.shadowBlur=12;ctx.shadowColor=p.team=='blue'?'rgba(37,99,235,0.7)':'rgba(220,38,38,0.7)';}else{ctx.shadowBlur=0;}
 if(p&&p.type==='king'){drawHex(n.x,n.y,20);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle=p.team=='blue'?'#2563EB':'#DC2626';ctx.lineWidth=3;ctx.stroke()}else{ctx.beginPath();ctx.arc(n.x,n.y,16,0,7);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle=p?(p.team=='blue'?'#2563EB':'#DC2626'):'#c1c7d0';ctx.lineWidth=2;ctx.stroke()}if(p){ctx.fillStyle=p.team=='blue'?'#2563EB':'#DC2626';ctx.font='bold 18px Arial';ctx.textAlign='center';let icon=p.type=='king'?'👑':p.type=='triangle'?'▲':p.type=='square'?'■':'X';ctx.fillText(icon,n.x,n.y+(p.type=='king'?7:6))}ctx.shadowBlur=0;}}
 function drawHex(x,y,size){ctx.beginPath();for(let i=0;i<6;i++){ctx.lineTo(x+size*Math.cos(i*Math.PI/3),y+size*Math.sin(i*Math.PI/3))}ctx.closePath()}
-
-function toggleUI(f=false){
-    if(f || !uiContainer.classList.contains('hidden')){ uiContainer.classList.add('hidden'); pullTab.innerText="▲ MENU"; canvas.height=window.innerHeight; }
-    else{ uiContainer.classList.remove('hidden'); pullTab.innerText="▼ CLOSE"; canvas.height=window.innerHeight-140; }
-    drawBoard();
-}
-
+function toggleUI(f=false){if(f || !uiContainer.classList.contains('hidden')){ uiContainer.classList.add('hidden'); pullTab.innerText="▲ MENU"; canvas.height=window.innerHeight; }else{ uiContainer.classList.remove('hidden'); pullTab.innerText="▼ CLOSE"; canvas.height=window.innerHeight-140; }drawBoard();}
 function triggerRestart(){if(myRole==='spectator')return;gameState=initialGameState();overlay.style.display='none';if(conn&&conn.open)conn.send("RESET_GAME");broadcastState();drawBoard();updateStatus()}
 function broadcastState(){if(conn&&conn.open) { conn.send(gameState); syncMyInfo(); } spectators.forEach(s=>{if(s.open)s.send(gameState)})}
-
-function updateStatus(){
-    if(gameState.gameOver)return;
-    if(isJustConnected){ statusDiv.innerText = "CONNECTED"; statusDiv.style.color = "#00AD11"; return; }
-    let prefix = (myRole==='spectator'?"LIVE: ":"");
-    if (myRole === 'blue' && !isRedAssigned) prefix = "SOLO: ";
-    statusDiv.innerText=prefix+gameState.turn.toUpperCase()+" TURN";
-    statusDiv.style.color=gameState.turn==='blue'?'#2563EB':'#DC2626';
-}
-
+function updateStatus(){if(gameState.gameOver)return;if(isJustConnected){ statusDiv.innerText = "CONNECTED"; statusDiv.style.color = "#00AD11"; return; }let prefix = (myRole==='spectator'?"LIVE: ":"");if (myRole === 'blue' && !isRedAssigned) prefix = "SOLO: ";statusDiv.innerText=prefix+gameState.turn.toUpperCase()+" TURN";statusDiv.style.color=gameState.turn==='blue'?'#2563EB':'#DC2626';}
 function showWinPopup(w){winMsg.innerText=w.toUpperCase()+" WINS!";winMsg.style.color=w==='blue'?'#2563EB':'#DC2626';document.getElementById('popup-controls').style.display='block';overlay.style.display='flex'}
-
-function showFullRoomPopup(){
-    winMsg.innerText="ROOM FULL - SPECTATING";
-    winMsg.style.color="#333";
-    winMsg.style.fontSize="18px";
-    document.getElementById('popup-controls').style.display='none';
-    overlay.style.display='flex';
-}
-
+function showFullRoomPopup(){winMsg.innerText="ROOM FULL - SPECTATING";winMsg.style.color="#333";winMsg.style.fontSize="18px";document.getElementById('popup-controls').style.display='none';overlay.style.display='flex';}
 function inviteTelegramFriend(t){const l=`https://t.me/Iq17game_bot/IQ17?startapp=${t==='spectator'?'spec_'+peer.id:peer.id}`;tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(l)}&text=${encodeURIComponent(t==='spectator'?"Watch live!":"Challenge me!")}`)}
 
 function setupConnection(){
@@ -298,9 +286,10 @@ function setupConnection(){
     });
     conn.on('data',d=>{
         if(d.type === 'INFO_SYNC') {
-            document.getElementById('opp-score-pill').style.display = 'block';
-            document.getElementById('opp-name').innerText = d.name;
-            document.getElementById('opp-iq').innerText = d.iq;
+            const side = d.role === 'blue' ? 'blue' : 'red';
+            document.getElementById(`${side}-name`).innerText = d.name;
+            document.getElementById(`${side}-iq-val`).innerText = d.iq;
+            document.getElementById(`${side}-rank`).innerText = getRank(d.iq);
             return;
         }
         if(d==="ROOM_FULL"){ showFullRoomPopup(); conn.close(); return; }
@@ -310,15 +299,11 @@ function setupConnection(){
             return;
         }
         if(d==="RESET_GAME"){ gameState=initialGameState(); overlay.style.display='none'; drawBoard(); updateStatus(); return; }
-        gameState=d;
-        spectators.forEach(s=>{if(s.open)s.send(gameState)});
-        
-        // --- DETECT REMOTE GAME OVER ---
+        gameState=d; spectators.forEach(s=>{if(s.open)s.send(gameState)});
         if(gameState.gameOver) {
-            // If the broadcast says game over, check if I lost
             if(myRole !== 'spectator' && myRole !== null) {
                 if(gameState.winner !== myRole) updateScore(false);
-                else updateScore(true); // In case host wins, sync local score
+                else updateScore(true);
             }
             showWinPopup(gameState.winner);
         }
@@ -333,6 +318,7 @@ peer.on('open',id=>{
         else{ conn=peer.connect(p,{reliable:true}); myRole='red'; }
         setupConnection();
     }else{ myRole='blue'; updateStatus(); }
+    loadScore();
 });
 
 peer.on('connection',c=>{
