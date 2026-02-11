@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -156,6 +155,7 @@ function handleSurrender() {
             conn.send({ type: 'SURRENDER', winner: gameState.winner });
             updateScore(false);
             showWinPopup(gameState.winner);
+            const winMsg = document.getElementById('win-message');
             winMsg.innerText = "YOU SURRENDERED";
         }
     });
@@ -178,6 +178,7 @@ function handleRematchRequest() {
 
 function triggerRestart() {
     gameState = initialGameState();
+    const overlay = document.getElementById('game-overlay');
     overlay.style.display = 'none';
     if (myRole === 'blue') broadcastState(); 
     drawBoard();
@@ -193,8 +194,6 @@ function syncMyInfo() {
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const statusDiv = document.getElementById('status');
-const overlay = document.getElementById('game-overlay');
-const winMsg = document.getElementById('win-message');
 const uiContainer = document.getElementById('ui-container');
 const pullTab = document.getElementById('pull-tab');
 const invitePlayerBtn = document.getElementById('invite-player-btn');
@@ -259,7 +258,7 @@ function getValidMoves(startNode) {
                 const angle1 = Math.atan2(p2.y - p1.y, p2.x - p1.x), angle2 = Math.atan2(p3.y - p2.y, p3.x - p2.x);
                 let diff = Math.abs(angle1 - angle2);
                 if (diff > Math.PI) diff = 2 * Math.PI - diff;
-                if ((diff * 180 / Math.PI) > 25.61) return; // Personalised Turn Rule Applied
+                if ((diff * 180 / Math.PI) > 17) return; // Zigzag Turn Rule Updated to 17 degrees
             }
             if (!visited.has(neighbor)) {
                 const targetPiece = gameState.pieces[neighbor];
@@ -316,8 +315,8 @@ function toggleUI(f=false){if(f || !uiContainer.classList.contains('hidden')){ u
 
 function broadcastState(){if(conn&&conn.open) { conn.send(gameState); syncMyInfo(); } spectators.forEach(s=>{if(s.open)s.send(gameState)})}
 function updateStatus(){if(gameState.gameOver)return;if(isJustConnected){ statusDiv.innerText = "CONNECTED"; statusDiv.style.color = "#00AD11"; return; }let prefix = (myRole==='spectator'?"LIVE: ":"");if (myRole === 'blue' && !isRedAssigned) prefix = "SOLO: ";statusDiv.innerText=prefix+gameState.turn.toUpperCase()+" TURN";statusDiv.style.color=gameState.turn==='blue'?'#2563EB':'#DC2626';}
-function showWinPopup(w){if(w==='draw'){winMsg.innerText="MATCH DRAW!";winMsg.style.color="#888";}else{winMsg.innerText=w.toUpperCase()+" WINS!";winMsg.style.color=w==='blue'?'#2563EB':'#DC2626';}document.getElementById('popup-controls').style.display='block';overlay.style.display='flex'}
-function showFullRoomPopup(){winMsg.innerText="ROOM FULL - SPECTATING";winMsg.style.color="#333";winMsg.style.fontSize="18px";document.getElementById('popup-controls').style.display='none';overlay.style.display='flex';}
+function showWinPopup(w){const winMsg = document.getElementById('win-message'); if(w==='draw'){winMsg.innerText="MATCH DRAW!";winMsg.style.color="#888";}else{winMsg.innerText=w.toUpperCase()+" WINS!";winMsg.style.color=w==='blue'?'#2563EB':'#DC2626';}document.getElementById('popup-controls').style.display='block'; const overlay = document.getElementById('game-overlay'); overlay.style.display='flex'}
+function showFullRoomPopup(){const winMsg = document.getElementById('win-message'); winMsg.innerText="ROOM FULL - SPECTATING";winMsg.style.color="#333";winMsg.style.fontSize="18px";document.getElementById('popup-controls').style.display='none'; const overlay = document.getElementById('game-overlay'); overlay.style.display='flex';}
 function inviteTelegramFriend(t){const l=`https://t.me/Iq17game_bot/IQ17?startapp=${t==='spectator'?'spec_'+peer.id:peer.id}`;tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(l)}&text=${encodeURIComponent(t==='spectator'?"Watch live!":"Challenge me!")}`)}
 
 function setupConnection(){
@@ -332,6 +331,7 @@ function setupConnection(){
             gameState.winner = myRole;
             updateScore(true);
             showWinPopup(gameState.winner);
+            const winMsg = document.getElementById('win-message');
             winMsg.innerText = "OPPONENT LEFT - YOU WIN!";
         }
     });
@@ -339,7 +339,6 @@ function setupConnection(){
     conn.on('data',d=>{
         if(!d || typeof d !== 'object') return;
         
-        // Handle Commands
         if(d.type) {
             switch(d.type) {
                 case 'INFO_SYNC':
@@ -356,7 +355,8 @@ function setupConnection(){
                     gameState.winner = d.winner;
                     updateScore(myRole === d.winner);
                     showWinPopup(gameState.winner);
-                    winMsg.innerText = "OPPONENT SURRENDERED!";
+                    const winMsgS = document.getElementById('win-message');
+                    winMsgS.innerText = "OPPONENT SURRENDERED!";
                     break;
                 case 'DRAW_OFFER':
                     tg.showConfirm("Opponent offered a draw. Accept?", (ok) => {
@@ -405,7 +405,6 @@ function setupConnection(){
             return;
         }
 
-        // Handle Game State (if no type property)
         gameState=d; 
         spectators.forEach(s=>{if(s.open)s.send(gameState)});
         if(gameState.gameOver) {
