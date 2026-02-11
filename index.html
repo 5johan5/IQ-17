@@ -181,9 +181,16 @@ function triggerRestart() {
 }
 
 function syncMyInfo() {
-    if (myRole !== 'spectator' && conn && conn.open) {
-        conn.send({ type: 'INFO_SYNC', name: myTelegramName, iq: userScore, role: myRole });
-    }
+    if (myRole === 'spectator') return;
+    const info = { type: 'INFO_SYNC', name: myTelegramName, iq: userScore, role: myRole };
+    
+    // Send to opponent
+    if (conn && conn.open) conn.send(info);
+    
+    // Send to all spectators currently watching me
+    spectators.forEach(s => {
+        if (s && s.open) s.send(info);
+    });
 }
 
 const canvas = document.getElementById('gameCanvas');
@@ -373,7 +380,6 @@ function setupConnection(){
         if(d.type) {
             switch(d.type) {
                 case 'FORCE_SYNC_REQUEST':
-                    // Opponent is asking us to resend our info for a new spectator
                     syncMyInfo();
                     break;
                 case 'INFO_SYNC':
@@ -442,9 +448,11 @@ peer.on('connection',c=>{
     if(c.metadata&&c.metadata.type==='spectator'){ 
         spectators.push(c); 
         c.on('open',()=>{
+            // 1. Send the game board
             c.send(gameState);
-            syncMyInfo(); 
-            // THE FIX: Tell the opponent to resend their info so the spectator sees BOTH names
+            // 2. Send my own info directly to the new spectator
+            c.send({ type: 'INFO_SYNC', name: myTelegramName, iq: userScore, role: myRole });
+            // 3. Ask opponent to send their info so it reaches the spectator
             if (conn && conn.open) conn.send({type: 'FORCE_SYNC_REQUEST'});
         }); 
     }
