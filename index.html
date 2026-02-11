@@ -26,7 +26,6 @@
         #game-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 100; flex-direction: column; justify-content: center; align-items: center; color: white; }
         .popup-box { background: white; padding: 30px; border-radius: 15px; color: #333; width: 80%; max-width: 300px; }
         
-        /* Compact Corner Scoreboard */
         #scoreboard { position: absolute; top: 5px; width: 100%; padding: 0 5px; box-sizing: border-box; pointer-events: none; z-index: 60; display: flex; justify-content: space-between; }
         .score-pill { background: rgba(255, 255, 255, 0.9); padding: 4px 8px; border-radius: 8px; border: 1.5px solid #ccc; width: 100px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; flex-direction: column; align-items: center; }
         .blue-side { border-color: #2563EB; color: #2563EB; }
@@ -35,7 +34,7 @@
         .p-iq { font-size: 9px; font-weight: bold; }
         .p-rank { font-size: 8px; font-style: italic; opacity: 0.9; }
         
-        #iq-change-display { font-size: 20px; font-weight: bold; margin: 15px 0; display: block; }
+        #iq-change-display { font-size: 18px; font-weight: bold; margin: 15px 0; display: block; }
     </style>
 </head>
 <body>
@@ -114,8 +113,19 @@ function updateScoreboardDisplay() {
 }
 
 function updateScore(isWin) {
-    let change = 0;
     const display = document.getElementById('iq-change-display');
+    
+    // --- SOLO MODE CHECK ---
+    // If I am host (blue) and no red is assigned, OR if I am guest but not connected to host
+    const isSolo = (myRole === 'blue' && !isRedAssigned);
+    
+    if (isSolo) {
+        display.innerText = "Solo Match: No IQ Change";
+        display.style.color = "#888";
+        return; // Exit without changing points
+    }
+
+    let change = 0;
     if (isWin) {
         if (userScore < 50) change = 10;
         else if (userScore < 70) change = 5;
@@ -209,15 +219,11 @@ function getValidMoves(startNode) {
                 } else { if (targetPiece && targetPiece.team === piece.team) return; }
             }
             if (isSpecialPiece && current.lastNode !== null) {
-                const pairMatch = (a, b) => (startNode === a && neighbor === b) || (startNode === b && neighbor === a);
-                const isSpecialSituation = pairMatch(28, 38) || pairMatch(16, 8);
-                if (!isSpecialSituation) {
-                    const p1 = nodes[current.lastNode], p2 = nodes[current.id], p3 = nodes[neighbor];
-                    const angle1 = Math.atan2(p2.y - p1.y, p2.x - p1.x), angle2 = Math.atan2(p3.y - p2.y, p3.x - p2.x);
-                    let diff = Math.abs(angle1 - angle2);
-                    if (diff > Math.PI) diff = 2 * Math.PI - diff;
-                    if ((diff * 180 / Math.PI) > 17) return; 
-                }
+                const p1 = nodes[current.lastNode], p2 = nodes[current.id], p3 = nodes[neighbor];
+                const angle1 = Math.atan2(p2.y - p1.y, p2.x - p1.x), angle2 = Math.atan2(p3.y - p2.y, p3.x - p2.x);
+                let diff = Math.abs(angle1 - angle2);
+                if (diff > Math.PI) diff = 2 * Math.PI - diff;
+                if ((diff * 180 / Math.PI) > 17) return; 
             }
             if (!visited.has(neighbor)) {
                 const targetPiece = gameState.pieces[neighbor];
