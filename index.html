@@ -84,6 +84,7 @@ tg.expand();
 
 const myTelegramName = tg.initDataUnsafe.user ? tg.initDataUnsafe.user.first_name : "Player";
 let gameMode = 'ranked'; 
+let hasProcessedResult = false; // ANTI-DOUBLE SUBTRACTION FLAG
 
 function getRank(iq) {
     if (iq <= 20) return "Initiate III";
@@ -141,14 +142,17 @@ function updateModeUI() {
     }
 }
 
-// --- UPDATED IQ DISTRIBUTION LOGIC ---
+// --- ANTI-DOUBLE SUBTRACTION SCORE LOGIC ---
 function updateScore(isWin, isDraw = false) {
+    if (hasProcessedResult) return; // Stop the double processing
+    
     const display = document.getElementById('iq-change-display');
     const isSolo = (myRole === 'blue' && !isRedAssigned);
     
     if (gameMode === 'friendly' || isSolo || isDraw) {
-        display.innerText = "Match Result: No IQ Change";
+        display.innerText = "No IQ Change";
         display.style.color = "#888";
+        hasProcessedResult = true;
         return;
     }
 
@@ -157,26 +161,23 @@ function updateScore(isWin, isDraw = false) {
         if (userScore < 50) change = 10;
         else if (userScore < 70) change = 5;
         else if (userScore < 85) change = 3;
-        else if (userScore < 100) change = 1;
+        else change = 1;
         userScore = Math.min(100, userScore + change);
         display.innerText = `+${change} IQ Gained!`;
         display.style.color = "#00AD11";
     } else {
-        // FIXED: Using else if logic to ensure only ONE tier subtracts points
-        if (userScore <= 50) {
-            change = 10;
-        } else if (userScore <= 70) {
-            change = 15;
-        } else if (userScore <= 85) {
-            change = 20;
-        } else {
-            change = 25;
-        }
+        // STRICT TIER PENALTY
+        if (userScore <= 50) change = 10;
+        else if (userScore <= 70) change = 15;
+        else if (userScore <= 85) change = 20;
+        else change = 25;
         
         userScore = Math.max(0, userScore - change);
         display.innerText = `-${change} IQ Lost`;
         display.style.color = "#DC2626";
     }
+    
+    hasProcessedResult = true; // Lock the score for this game
     updateScoreboardDisplay();
     tg.CloudStorage.setItem('player_iq_final_v1', userScore.toString());
     syncMyInfo();
@@ -214,6 +215,7 @@ function handleRematchRequest() {
 
 function triggerRestart() {
     gameState = initialGameState();
+    hasProcessedResult = false; // Reset the anti-double flag for the new game
     overlay.style.display = 'none';
     if (myRole === 'blue') broadcastState(); 
     drawBoard();
@@ -469,8 +471,12 @@ function setupConnection(){
         gameState=d; 
         if(d.mode) { gameMode = d.mode; updateModeUI(); }
         spectators.forEach(s => { if(s && s.open) s.send(gameState); });
-        if(gameState.gameOver) {
-            if(myRole !== 'spectator' && myRole !== gameState.winner && !isJustConnected) { updateScore(false); }
+        
+        // --- ONLY TRIGGER SCORE ON LOCAL WIN/LOSS ---
+        if(gameState.gameOver && !hasProcessedResult) {
+            if(myRole !== 'spectator' && !isJustConnected) {
+                updateScore(myRole === gameState.winner);
+            }
             showWinPopup(gameState.winner);
         }
         drawBoard(); updateStatus();
