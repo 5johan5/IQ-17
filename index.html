@@ -70,7 +70,7 @@
             <div id="menu">
                 <button id="invite-player-btn" class="btn" onclick="inviteTelegramFriend('player')">Invite Friend</button>
                 <button id="invite-spec-btn" class="btn" style="background:#555" onclick="inviteTelegramFriend('spectator')">Spectators</button>
-                <br><br><br>
+                <br>
                 <button id="surrender-btn" class="btn" style="background:#DC2626" onclick="handleSurrender()">Surrender</button>
                 <button id="draw-btn" class="btn" style="background:#f39c12" onclick="handleDrawRequest()">Offer Draw</button>
             </div>
@@ -249,28 +249,18 @@ function getValidMoves(startNode) {
     const maxDist = isSpecialPiece ? 3 : 1; 
     let queue = [{id: startNode, dist: 0, lastNode: null}];
     visited.set(startNode, 0);
-
     while (queue.length > 0) {
         let current = queue.shift();
         if (current.dist >= maxDist) continue;
         let neighbors = roads.filter(r => r.includes(current.id)).map(r => r[0] === current.id ? r[1] : r[0]);
-        
         neighbors.forEach(neighbor => {
-            // SPECIAL RULES FOR DASHED LINES
-            const isPath38_28 = (current.id === 38 && neighbor === 28) || (current.id === 28 && neighbor === 38);
-            const isPath8_16 = (current.id === 8 && neighbor === 16) || (current.id === 16 && neighbor === 8);
+            const isSpecialPath1 = (current.id === 8 && neighbor === 16) || (current.id === 16 && neighbor === 8);
+            const isSpecialPath2 = (current.id === 38 && neighbor === 28) || (current.id === 28 && neighbor === 38);
+            
+            // Apply new blocker rules: 11 blocks 8-16, 32 blocks 28-38
+            if (isSpecialPath1 && (gameState.pieces[11] || !isSpecialPiece)) return;
+            if (isSpecialPath2 && (gameState.pieces[32] || !isSpecialPiece)) return;
 
-            // 1. Only Kings/Triangles can use special lines. 
-            // 2. Path 38-28 blocked if Node 32 is occupied. 
-            // 3. Path 8-16 blocked if Node 11 is occupied.
-            if (isPath38_28) {
-                if (!isSpecialPiece || gameState.pieces[32]) return;
-            }
-            if (isPath8_16) {
-                if (!isSpecialPiece || gameState.pieces[11]) return;
-            }
-
-            // Chamber logic
             if (neighbor === 0 || neighbor === 43) {
                 const targetPiece = gameState.pieces[neighbor];
                 if (piece.type !== 'king') {
@@ -278,8 +268,6 @@ function getValidMoves(startNode) {
                     if (isEnemyChamber) { if (!targetPiece || targetPiece.team === piece.team) return; } else { return; }
                 } else { if (targetPiece && targetPiece.team === piece.team) return; }
             }
-
-            // IQ 17 Degree Restriction (Angle check)
             if (isSpecialPiece && current.lastNode !== null) {
                 const p1 = nodes[current.lastNode], p2 = nodes[current.id], p3 = nodes[neighbor];
                 const angle1 = Math.atan2(p2.y - p1.y, p2.x - p1.x), angle2 = Math.atan2(p3.y - p2.y, p3.x - p2.x);
@@ -287,10 +275,8 @@ function getValidMoves(startNode) {
                 if (diff > Math.PI) diff = 2 * Math.PI - diff;
                 if ((diff * 180 / Math.PI) > 17) return; 
             }
-
             if (!visited.has(neighbor)) {
                 const targetPiece = gameState.pieces[neighbor];
-                // X (Soldier) logic
                 if (piece.type === 'x') {
                     const isBackward = piece.team === 'blue' ? nodes[neighbor].y < nodes[startNode].y : nodes[neighbor].y > nodes[startNode].y;
                     const isBridge = (startNode == 15 && neighbor == 22) || (startNode == 22 && neighbor == 15) || (startNode == 21 && neighbor == 27) || (startNode == 27 && neighbor == 21);
@@ -341,18 +327,9 @@ function drawBoard(){
     ctx.clearRect(0,0,canvas.width,canvas.height);
     roads.forEach(p=>{
         ctx.beginPath();
-        const isPath38_28 = (p[0] === 38 && p[1] === 28) || (p[1] === 38 && p[0] === 28);
-        const isPath8_16 = (p[0] === 8 && p[1] === 16) || (p[1] === 8 && p[0] === 16);
-
-        if(isPath38_28 || isPath8_16) { 
-            ctx.setLineDash([5, 5]); 
-            // Turn road Red if it is blocked by a piece on the junction
-            const junctionNode = isPath38_28 ? 32 : 11;
-            ctx.strokeStyle = gameState.pieces[junctionNode] ? '#DC2626' : '#0088cc';
-        } else { 
-            ctx.setLineDash([]); 
-            ctx.strokeStyle = '#7a869a'; 
-        }
+        const isRestricted = (p[0] === 38 && p[1] === 28) || (p[0] === 28 && p[1] === 38) || (p[0] === 8 && p[1] === 16) || (p[0] === 16 && p[1] === 8);
+        if(isRestricted) { ctx.setLineDash([5, 5]); ctx.strokeStyle = '#0088cc'; } 
+        else { ctx.setLineDash([]); ctx.strokeStyle = '#7a869a'; }
         ctx.lineWidth=2.5;
         ctx.moveTo(nodes[p[0]].x,nodes[p[0]].y); ctx.lineTo(nodes[p[1]].x,nodes[p[1]].y); ctx.stroke();
     });
@@ -365,7 +342,8 @@ function drawBoard(){
         if(possible.includes(numId)){ctx.beginPath();ctx.arc(n.x,n.y,20,0,7);ctx.fillStyle='rgba(255,160,0,0.6)';ctx.fill();ctx.strokeStyle='rgba(180,120,0,0.7)';ctx.lineWidth=2;ctx.stroke()}
         if(p){ctx.shadowBlur=12;ctx.shadowColor=p.team=='blue'?'rgba(37,99,235,0.7)':'rgba(220,38,38,0.7)';}else{ctx.shadowBlur=0;}
         if(p&&p.type==='king'){drawHex(n.x,n.y,20);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle=p.team=='blue'?'#2563EB':'#DC2626';ctx.lineWidth=3;ctx.stroke()}else{ctx.beginPath();ctx.arc(n.x,n.y,16,0,7);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle=p?(p.team=='blue'?'#2563EB':'#DC2626'):'#c1c7d0';ctx.lineWidth=2;ctx.stroke()}
-        if(p){ctx.fillStyle=p.team=='blue'?'#2563EB':'#DC2626';ctx.font='bold 18px Arial';ctx.textAlign='center';let icon=p.type=='king'?'👑':p.type=='triangle'?'▲':p.type=='square'?'■':'X';ctx.fillText(icon,n.x,n.y+(p.type=='king'?7:6))}<br>        ctx.shadowBlur=0;
+        if(p){ctx.fillStyle=p.team=='blue'?'#2563EB':'#DC2626';ctx.font='bold 18px Arial';ctx.textAlign='center';let icon=p.type=='king'?'👑':p.type=='triangle'?'▲':p.type=='square'?'■':'X';ctx.fillText(icon,n.x,n.y+(p.type=='king'?7:6))}
+        ctx.shadowBlur=0;
     }
 }
 function drawHex(x,y,size){ctx.beginPath();for(let i=0;i<6;i++){ctx.lineTo(x+size*Math.cos(i*Math.PI/3),y+size*Math.sin(i*Math.PI/3))}ctx.closePath()}
