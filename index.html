@@ -123,9 +123,10 @@ function updateScoreboardDisplay() {
     document.getElementById(`${side}-rank`).innerText = getRank(userScore);
 }
 
+// RESTRICTED: Only Blue (Host) can toggle
 function toggleGameMode() {
-    if (myRole !== 'blue' || isRedAssigned) {
-        tg.showAlert("Mode can only be changed by the host before a match starts.");
+    if (myRole !== 'blue') {
+        tg.showAlert("Only the Host (Blue Team) can change the match mode.");
         return;
     }
     gameMode = (gameMode === 'ranked') ? 'friendly' : 'ranked';
@@ -145,7 +146,7 @@ function updateScore(isWin, isDraw = false) {
     const display = document.getElementById('iq-change-display');
     const isSolo = (myRole === 'blue' && !isRedAssigned);
     
-    // STRICT MODE CHECK: Exit if friendly
+    // NO IQ CHANGE IN FRIENDLY MODE
     if (gameMode === 'friendly') {
         display.innerText = "Friendly Match: No IQ Change";
         display.style.color = "#888";
@@ -380,6 +381,7 @@ function drawHex(x,y,size){ctx.beginPath();for(let i=0;i<6;i++){ctx.lineTo(x+siz
 function toggleUI(f=false){if(f || !uiContainer.classList.contains('hidden')){ uiContainer.classList.add('hidden'); pullTab.innerText="▲ MENU"; canvas.height=window.innerHeight; }else{ uiContainer.classList.remove('hidden'); pullTab.innerText="▼ CLOSE"; canvas.height=window.innerHeight-140; }drawBoard();}
 
 function broadcastState(){
+    gameState.mode = gameMode; // Ensure current mode is packed into broadcast
     if(conn && conn.open) { 
         conn.send(gameState); 
         syncMyInfo(); 
