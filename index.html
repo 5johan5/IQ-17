@@ -145,6 +145,7 @@ function updateScore(isWin, isDraw = false) {
     const display = document.getElementById('iq-change-display');
     const isSolo = (myRole === 'blue' && !isRedAssigned);
     
+    // STRICT MODE CHECK: Exit if friendly
     if (gameMode === 'friendly') {
         display.innerText = "Friendly Match: No IQ Change";
         display.style.color = "#888";
