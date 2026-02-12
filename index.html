@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IQ 17 - Final Version</title>
+    <title>IQ 17 - Final Ranked System</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
@@ -141,18 +141,13 @@ function updateModeUI() {
     }
 }
 
+// --- CORE RANKING MECHANISM UPDATED ---
 function updateScore(isWin, isDraw = false) {
     const display = document.getElementById('iq-change-display');
     const isSolo = (myRole === 'blue' && !isRedAssigned);
     
-    if (gameMode === 'friendly') {
-        display.innerText = "Friendly Match: No IQ Change";
-        display.style.color = "#888";
-        return;
-    }
-
-    if (isSolo || isDraw) {
-        display.innerText = isDraw ? "Match Draw: No IQ Change" : "Solo Match: No IQ Change";
+    if (gameMode === 'friendly' || isSolo || isDraw) {
+        display.innerText = "Match Result: No IQ Change";
         display.style.color = "#888";
         return;
     }
@@ -167,11 +162,16 @@ function updateScore(isWin, isDraw = false) {
         display.innerText = `+${change} IQ Gained!`;
         display.style.color = "#00AD11";
     } else {
-        // --- NEW TIERED POINT DISTRIBUTION ---
-        if (userScore <= 50) change = 10;
-        else if (userScore <= 70) change = 15;
-        else if (userScore <= 85) change = 20;
-        else if (userScore <= 100) change = 25;
+        // STRICT TIER LOGIC
+        if (userScore <= 50) {
+            change = 10; // 0-50 IQ
+        } else if (userScore <= 70) {
+            change = 15; // 51-70 IQ
+        } else if (userScore <= 85) {
+            change = 20; // 71-85 IQ
+        } else {
+            change = 25; // 86-100 IQ
+        }
         
         userScore = Math.max(0, userScore - change);
         display.innerText = `-${change} IQ Lost`;
