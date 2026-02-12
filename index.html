@@ -123,7 +123,6 @@ function updateScoreboardDisplay() {
     document.getElementById(`${side}-rank`).innerText = getRank(userScore);
 }
 
-// RESTRICTED: Only Blue (Host) can toggle
 function toggleGameMode() {
     if (myRole !== 'blue') {
         tg.showAlert("Only the Host (Blue Team) can change the match mode.");
@@ -146,7 +145,6 @@ function updateScore(isWin, isDraw = false) {
     const display = document.getElementById('iq-change-display');
     const isSolo = (myRole === 'blue' && !isRedAssigned);
     
-    // NO IQ CHANGE IN FRIENDLY MODE
     if (gameMode === 'friendly') {
         display.innerText = "Friendly Match: No IQ Change";
         display.style.color = "#888";
@@ -161,6 +159,7 @@ function updateScore(isWin, isDraw = false) {
 
     let change = 0;
     if (isWin) {
+        // Winning Math
         if (userScore < 50) change = 10;
         else if (userScore < 70) change = 5;
         else if (userScore < 85) change = 3;
@@ -169,10 +168,12 @@ function updateScore(isWin, isDraw = false) {
         display.innerText = `+${change} IQ Gained!`;
         display.style.color = "#00AD11";
     } else {
-        if (userScore <= 50) change = 10;
-        else if (userScore <= 70) change = 15;
-        else if (userScore <= 85) change = 20;
-        else if (userScore <= 100) change = 25;
+        // --- FIXED LOSING MATH PER YOUR REQUEST ---
+        if (userScore <= 50) change = 10;          // 0-50 IQ
+        else if (userScore <= 70) change = 15;     // 51-70 IQ
+        else if (userScore <= 85) change = 20;     // 71-85 IQ
+        else if (userScore <= 100) change = 25;    // 86-100 IQ
+        
         userScore = Math.max(0, userScore - change);
         display.innerText = `-${change} IQ Lost`;
         display.style.color = "#DC2626";
@@ -381,7 +382,7 @@ function drawHex(x,y,size){ctx.beginPath();for(let i=0;i<6;i++){ctx.lineTo(x+siz
 function toggleUI(f=false){if(f || !uiContainer.classList.contains('hidden')){ uiContainer.classList.add('hidden'); pullTab.innerText="▲ MENU"; canvas.height=window.innerHeight; }else{ uiContainer.classList.remove('hidden'); pullTab.innerText="▼ CLOSE"; canvas.height=window.innerHeight-140; }drawBoard();}
 
 function broadcastState(){
-    gameState.mode = gameMode; // Ensure current mode is packed into broadcast
+    gameState.mode = gameMode;
     if(conn && conn.open) { 
         conn.send(gameState); 
         syncMyInfo(); 
