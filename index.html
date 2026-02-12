@@ -257,7 +257,7 @@ function getValidMoves(startNode) {
             const isSpecialPath1 = (current.id === 8 && neighbor === 16) || (current.id === 16 && neighbor === 8);
             const isSpecialPath2 = (current.id === 38 && neighbor === 28) || (current.id === 28 && neighbor === 38);
             
-            // Apply new blocker rules: 11 blocks 8-16, 32 blocks 28-38
+            // Blocker Rule: 11 blocks path 8-16, 32 blocks path 28-38
             if (isSpecialPath1 && (gameState.pieces[11] || !isSpecialPiece)) return;
             if (isSpecialPath2 && (gameState.pieces[32] || !isSpecialPiece)) return;
 
@@ -307,12 +307,23 @@ function handleInteraction(id) {
     } else if (gameState.selectedNode !== null) {
         if (getValidMoves(gameState.selectedNode).includes(id)) {
             const movingPiece = gameState.pieces[gameState.selectedNode];
+            
+            // Win condition Logic
             if ((target && target.type === 'king') || (movingPiece.type === 'king' && ((movingPiece.team === 'blue' && id === 43) || (movingPiece.team === 'red' && id === 0)))) {
-                gameState.gameOver = true; gameState.winner = gameState.turn; 
-                if (myRole === gameState.turn) updateScore(true);
-                else if (myRole !== null && myRole !== 'spectator') updateScore(false);
+                gameState.gameOver = true; 
+                gameState.winner = gameState.turn; 
+                
+                // Point logic: Winner gets points, Loser loses points
+                if (myRole !== 'spectator' && !isHostSolo) {
+                    if (myRole === gameState.winner) {
+                        updateScore(true); // Winner gains
+                    } else {
+                        updateScore(false); // Loser loses
+                    }
+                }
                 showWinPopup(gameState.winner);
             }
+
             gameState.lastMove = {from: gameState.selectedNode, to: id};
             gameState.pieces[id] = movingPiece; delete gameState.pieces[gameState.selectedNode];
             gameState.turn = gameState.turn === 'blue' ? 'red' : 'blue'; gameState.selectedNode = null; 
@@ -438,7 +449,13 @@ function setupConnection(){
         }
         gameState=d; 
         spectators.forEach(s => { if(s && s.open) s.send(gameState); });
-        if(gameState.gameOver) showWinPopup(gameState.winner);
+        if(gameState.gameOver) {
+            // Check if loser needs point deduction upon receiving game-over state
+            if(myRole !== 'spectator' && myRole !== gameState.winner && !isJustConnected) {
+                 updateScore(false);
+            }
+            showWinPopup(gameState.winner);
+        }
         drawBoard(); updateStatus();
     });
 }
