@@ -23,6 +23,7 @@
         #pull-tab { position: absolute; top: -30px; left: 50%; transform: translateX(-50%); background: #fff; border: 1px solid #ccc; border-bottom: none; padding: 5px 20px; border-radius: 10px 10px 0 0; cursor: pointer; font-size: 12px; font-weight: bold; color: #0088cc; }
         #status { position: absolute; top: -65px; left: 0; width: 100%; font-size: 22px; font-weight: 900; text-transform: uppercase; pointer-events: none; text-shadow: 0px 0px 5px rgba(255,255,255,0.8); }
         .btn { padding: 10px 18px; background: #0088cc; color: white; border: none; border-radius: 8px; cursor: pointer; margin: 3px; font-weight: bold; font-size: 14px; }
+        .btn:disabled { background: #ccc !important; cursor: not-allowed; opacity: 0.6; }
         #game-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 100; flex-direction: column; justify-content: center; align-items: center; color: white; }
         .popup-box { background: white; padding: 30px; border-radius: 15px; color: #333; width: 80%; max-width: 300px; }
         #scoreboard { position: absolute; top: 5px; width: 100%; padding: 0 5px; box-sizing: border-box; pointer-events: none; z-index: 60; display: flex; justify-content: space-between; }
@@ -132,6 +133,9 @@ function toggleGameMode() {
         tg.showAlert("Only the Host (Blue Team) can change the match mode.");
         return;
     }
+    // Block toggle if opponent joined
+    if (isRedAssigned) return;
+
     gameMode = (gameMode === 'ranked') ? 'friendly' : 'ranked';
     updateModeUI();
     broadcastState();
@@ -142,6 +146,14 @@ function updateModeUI() {
     if(btn) {
         btn.innerText = `MODE: ${gameMode.toUpperCase()}`;
         btn.style.background = (gameMode === 'ranked') ? '#6c757d' : '#9b59b6';
+        
+        // DISABLE button if both teams are present
+        if (isRedAssigned) {
+            btn.disabled = true;
+            btn.title = "Mode locked after opponent joined";
+        } else {
+            btn.disabled = false;
+        }
     }
 }
 
@@ -217,6 +229,7 @@ function triggerRestart() {
     if (myRole === 'blue') broadcastState(); 
     drawBoard();
     updateStatus();
+    updateModeUI(); // Refresh button state
 }
 
 function syncMyInfo() {
@@ -452,7 +465,7 @@ function setupConnection(){
                 case 'CHECK_AVAILABILITY':
                     if (d.tgId === myTelegramID) { conn.send({type: "SELF_CONNECTION"}); conn.close(); return; }
                     if(isRedAssigned) { conn.send({type: "ROOM_FULL"}); }
-                    else { isRedAssigned=true; invitePlayerBtn.style.display='none'; isJustConnected=true; updateStatus(); setTimeout(()=> {isJustConnected=false; updateStatus();}, 2000); broadcastState(); }
+                    else { isRedAssigned=true; invitePlayerBtn.style.display='none'; isJustConnected=true; updateStatus(); updateModeUI(); setTimeout(()=> {isJustConnected=false; updateStatus();}, 2000); broadcastState(); }
                     break;
                 case 'SELF_CONNECTION': tg.showAlert("You cannot join your own game session."); break;
             }
@@ -482,10 +495,10 @@ peer.on('open',id=>{
         if (p === id || p === 'spec_' + id) { tg.showAlert("You cannot join your own game."); }
     }
     loadScore();
+    updateModeUI();
 });
 
 peer.on('connection',c=>{
-    // SECONDARY BLOCK: Do not allow connection if the joining user is the host (by TG ID)
     if (c.peer === peer.id) { c.close(); return; }
 
     if(c.metadata&&c.metadata.type==='spectator'){ 
