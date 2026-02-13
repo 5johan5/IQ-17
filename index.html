@@ -145,17 +145,14 @@ function updateModeUI() {
 
 function updateScore(isWin, isDraw = false) {
     if (hasProcessedResult) return; 
-    
     const display = document.getElementById('iq-change-display');
     const isSolo = (myRole === 'blue' && !isRedAssigned);
-    
     if (gameMode === 'friendly' || isSolo || isDraw) {
         display.innerText = "No IQ Change";
         display.style.color = "#888";
         hasProcessedResult = true;
         return;
     }
-
     let change = 0;
     if (isWin) {
         if (userScore < 50) change = 10;
@@ -170,12 +167,10 @@ function updateScore(isWin, isDraw = false) {
         else if (userScore <= 70) change = 15;
         else if (userScore <= 85) change = 20;
         else change = 25;
-        
         userScore = Math.max(0, userScore - change);
         display.innerText = `-${change} IQ Lost`;
         display.style.color = "#DC2626";
     }
-    
     hasProcessedResult = true; 
     updateScoreboardDisplay();
     tg.CloudStorage.setItem('player_iq_final_v1', userScore.toString());
@@ -292,7 +287,6 @@ function getValidMoves(startNode) {
             const isSpecialPath2 = (current.id === 38 && neighbor === 28) || (current.id === 28 && neighbor === 38);
             if (isSpecialPath1 && (gameState.pieces[11] || !isSpecialPiece)) return;
             if (isSpecialPath2 && (gameState.pieces[32] || !isSpecialPiece)) return;
-
             if (neighbor === 0 || neighbor === 43) {
                 const targetPiece = gameState.pieces[neighbor];
                 if (piece.type !== 'king') {
@@ -342,20 +336,14 @@ function handleInteraction(id) {
             if ((target && target.type === 'king') || (movingPiece.type === 'king' && ((movingPiece.team === 'blue' && id === 43) || (movingPiece.team === 'red' && id === 0)))) {
                 gameState.gameOver = true; 
                 gameState.winner = gameState.turn; 
-                if (myRole !== 'spectator' && !isHostSolo) {
-                    updateScore(myRole === gameState.winner);
-                }
+                if (myRole !== 'spectator' && !isHostSolo) { updateScore(myRole === gameState.winner); }
                 showWinPopup(gameState.winner);
             }
             gameState.lastMove = {from: gameState.selectedNode, to: id};
             gameState.pieces[id] = movingPiece; delete gameState.pieces[gameState.selectedNode];
             gameState.turn = gameState.turn === 'blue' ? 'red' : 'blue'; gameState.selectedNode = null; 
-            
-            gameState.version++; 
-            localVersion = gameState.version;
-
-            updateStatus();
-            broadcastState(); 
+            gameState.version++; localVersion = gameState.version;
+            updateStatus(); broadcastState(); 
         } else { gameState.selectedNode = null; }
     }
     drawBoard();
@@ -389,13 +377,8 @@ function toggleUI(f=false){if(f || !uiContainer.classList.contains('hidden')){ u
 
 function broadcastState(){
     gameState.mode = gameMode;
-    if(conn && conn.open) { 
-        conn.send(gameState); 
-        syncMyInfo(); 
-    } 
-    spectators.forEach(s => { 
-        if(s && s.open) s.send(gameState); 
-    });
+    if(conn && conn.open) { conn.send(gameState); syncMyInfo(); } 
+    spectators.forEach(s => { if(s && s.open) s.send(gameState); });
 }
 
 function updateStatus(){if(gameState.gameOver)return;if(isJustConnected){ statusDiv.innerText = "CONNECTED"; statusDiv.style.color = "#00AD11"; return; }let prefix = (myRole==='spectator'?"LIVE: ":"");if (myRole === 'blue' && !isRedAssigned) prefix = "SOLO: ";statusDiv.innerText=prefix+gameState.turn.toUpperCase()+" TURN";statusDiv.style.color=gameState.turn==='blue'?'#2563EB':'#DC2626';}
@@ -425,9 +408,7 @@ function setupConnection(){
     });
     conn.on('data',d=>{
         if(!d || typeof d !== 'object') return;
-        
         if(d.type === 'HEARTBEAT') return;
-
         if(d.type) {
             switch(d.type) {
                 case 'FORCE_SYNC_REQUEST': syncMyInfo(); break;
@@ -440,26 +421,21 @@ function setupConnection(){
                     break;
                 case 'SURRENDER':
                     gameState.gameOver = true; gameState.winner = d.winner;
-                    broadcastState(); 
-                    if(myRole !== 'spectator') updateScore(myRole === d.winner); 
-                    showWinPopup(gameState.winner);
-                    winMsg.innerText = "OPPONENT SURRENDERED!";
+                    broadcastState(); if(myRole !== 'spectator') updateScore(myRole === d.winner); 
+                    showWinPopup(gameState.winner); winMsg.innerText = "OPPONENT SURRENDERED!";
                     break;
                 case 'DRAW_OFFER':
                     if(myRole === 'spectator') return;
                     tg.showConfirm("Opponent offered a draw. Accept?", (ok) => {
                         if(ok && conn && conn.open) {
                             gameState.gameOver = true; gameState.winner = 'draw';
-                            broadcastState(); 
-                            conn.send({ type: 'DRAW_ACCEPT' }); updateScore(false, true); showWinPopup('draw');
+                            broadcastState(); conn.send({ type: 'DRAW_ACCEPT' }); updateScore(false, true); showWinPopup('draw');
                         }
                     });
                     break;
                 case 'DRAW_ACCEPT':
                     gameState.gameOver = true; gameState.winner = 'draw';
-                    broadcastState(); 
-                    if(myRole !== 'spectator') updateScore(false, true); 
-                    showWinPopup('draw');
+                    broadcastState(); if(myRole !== 'spectator') updateScore(false, true); showWinPopup('draw');
                     break;
                 case 'REMATCH_OFFER':
                     if(myRole === 'spectator') return;
@@ -476,51 +452,36 @@ function setupConnection(){
             }
             return;
         }
-
         if(d.version !== undefined) {
             if(d.version < localVersion && !gameState.gameOver) return; 
-            localVersion = d.version;
-            gameState=d; 
+            localVersion = d.version; gameState=d; 
             if(d.mode) { gameMode = d.mode; updateModeUI(); }
             spectators.forEach(s => { if(s && s.open) s.send(gameState); });
-            
-            if(gameState.gameOver && !hasProcessedResult) {
-                if(myRole !== 'spectator' && !isJustConnected) {
-                    updateScore(myRole === gameState.winner);
-                }
-                showWinPopup(gameState.winner);
-            }
+            if(gameState.gameOver && !hasProcessedResult) { if(myRole !== 'spectator' && !isJustConnected) { updateScore(myRole === gameState.winner); } showWinPopup(gameState.winner); }
             drawBoard(); updateStatus();
         }
     });
 }
 
-setInterval(() => {
-    if (conn && conn.open) conn.send({ type: 'HEARTBEAT' });
-}, 4000);
+setInterval(() => { if (conn && conn.open) conn.send({ type: 'HEARTBEAT' }); }, 4000);
 
 peer.on('open',id=>{
     const p=tg.initDataUnsafe.start_param;
     if(p && p !== id && p !== 'spec_' + id){
-        if(p.startsWith('spec_')){ 
-            conn=peer.connect(p.replace('spec_',''),{metadata:{type:'spectator'},reliable:true}); 
-            myRole='spectator'; 
-        } else { 
-            conn=peer.connect(p,{reliable:true}); 
-            myRole='red'; 
-        }
+        if(p.startsWith('spec_')){ conn=peer.connect(p.replace('spec_',''),{metadata:{type:'spectator'},reliable:true}); myRole='spectator'; }
+        else { conn=peer.connect(p,{reliable:true}); myRole='red'; }
         setupConnection();
     }else{ 
-        myRole='blue'; 
-        updateStatus(); 
-        if (p === id || p === 'spec_' + id) {
-            tg.showAlert("You cannot join your own game using the invite link.");
-        }
+        myRole='blue'; updateStatus(); 
+        if (p === id || p === 'spec_' + id) { tg.showAlert("You cannot join your own game."); }
     }
     loadScore();
 });
 
 peer.on('connection',c=>{
+    // KILL SWITCH: Do not allow connection from self (Host clicking own link)
+    if (c.peer === peer.id) { c.close(); return; }
+
     if(c.metadata&&c.metadata.type==='spectator'){ 
         spectators.push(c); 
         c.on('open',()=>{
@@ -531,8 +492,7 @@ peer.on('connection',c=>{
     }
     else{ 
         if(myRole === 'blue' && isRedAssigned) { c.on('open', () => c.send({type: "ROOM_FULL"})); return; } 
-        conn=c; 
-        setupConnection(); 
+        conn=c; setupConnection(); 
     }
 });
 
