@@ -85,7 +85,7 @@ tg.expand();
 const myTelegramName = tg.initDataUnsafe.user ? tg.initDataUnsafe.user.first_name : "Player";
 let gameMode = 'ranked'; 
 let hasProcessedResult = false; 
-let localVersion = 0; // Sync tracker
+let localVersion = 0; 
 
 function getRank(iq) {
     if (iq <= 20) return "Initiate III";
@@ -351,7 +351,7 @@ function handleInteraction(id) {
             gameState.pieces[id] = movingPiece; delete gameState.pieces[gameState.selectedNode];
             gameState.turn = gameState.turn === 'blue' ? 'red' : 'blue'; gameState.selectedNode = null; 
             
-            gameState.version++; // Sync Increment
+            gameState.version++; 
             localVersion = gameState.version;
 
             updateStatus();
@@ -426,7 +426,6 @@ function setupConnection(){
     conn.on('data',d=>{
         if(!d || typeof d !== 'object') return;
         
-        // Anti-Ghosting / Heartbeat Filter
         if(d.type === 'HEARTBEAT') return;
 
         if(d.type) {
@@ -478,9 +477,8 @@ function setupConnection(){
             return;
         }
 
-        // State Version Syncing
         if(d.version !== undefined) {
-            if(d.version < localVersion && !gameState.gameOver) return; // Old packet
+            if(d.version < localVersion && !gameState.gameOver) return; 
             localVersion = d.version;
             gameState=d; 
             if(d.mode) { gameMode = d.mode; updateModeUI(); }
@@ -497,14 +495,13 @@ function setupConnection(){
     });
 }
 
-// TURN Keep-Alive (Heartbeat) to prevent relay timeouts
 setInterval(() => {
     if (conn && conn.open) conn.send({ type: 'HEARTBEAT' });
 }, 4000);
 
 peer.on('open',id=>{
     const p=tg.initDataUnsafe.start_param;
-    if(p){
+    if(p && p !== id && p !== 'spec_' + id){
         if(p.startsWith('spec_')){ 
             conn=peer.connect(p.replace('spec_',''),{metadata:{type:'spectator'},reliable:true}); 
             myRole='spectator'; 
@@ -513,7 +510,13 @@ peer.on('open',id=>{
             myRole='red'; 
         }
         setupConnection();
-    }else{ myRole='blue'; updateStatus(); }
+    }else{ 
+        myRole='blue'; 
+        updateStatus(); 
+        if (p === id || p === 'spec_' + id) {
+            tg.showAlert("You cannot join your own game using the invite link.");
+        }
+    }
     loadScore();
 });
 
