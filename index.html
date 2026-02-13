@@ -84,7 +84,8 @@ tg.expand();
 
 const myTelegramName = tg.initDataUnsafe.user ? tg.initDataUnsafe.user.first_name : "Player";
 let gameMode = 'ranked'; 
-let hasProcessedResult = false; // ANTI-DOUBLE SUBTRACTION FLAG
+let hasProcessedResult = false; 
+let localVersion = 0; // Sync tracker
 
 function getRank(iq) {
     if (iq <= 20) return "Initiate III";
@@ -142,9 +143,8 @@ function updateModeUI() {
     }
 }
 
-// --- ANTI-DOUBLE SUBTRACTION SCORE LOGIC ---
 function updateScore(isWin, isDraw = false) {
-    if (hasProcessedResult) return; // Stop the double processing
+    if (hasProcessedResult) return; 
     
     const display = document.getElementById('iq-change-display');
     const isSolo = (myRole === 'blue' && !isRedAssigned);
@@ -166,7 +166,6 @@ function updateScore(isWin, isDraw = false) {
         display.innerText = `+${change} IQ Gained!`;
         display.style.color = "#00AD11";
     } else {
-        // STRICT TIER PENALTY
         if (userScore <= 50) change = 10;
         else if (userScore <= 70) change = 15;
         else if (userScore <= 85) change = 20;
@@ -177,7 +176,7 @@ function updateScore(isWin, isDraw = false) {
         display.style.color = "#DC2626";
     }
     
-    hasProcessedResult = true; // Lock the score for this game
+    hasProcessedResult = true; 
     updateScoreboardDisplay();
     tg.CloudStorage.setItem('player_iq_final_v1', userScore.toString());
     syncMyInfo();
@@ -215,7 +214,8 @@ function handleRematchRequest() {
 
 function triggerRestart() {
     gameState = initialGameState();
-    hasProcessedResult = false; // Reset the anti-double flag for the new game
+    hasProcessedResult = false; 
+    localVersion = 0;
     overlay.style.display = 'none';
     if (myRole === 'blue') broadcastState(); 
     drawBoard();
@@ -261,6 +261,7 @@ let peer = new Peer({ config: {'iceServers': [{ 'urls': 'stun:stun.l.google.com:
 let conn = null, spectators = [], myRole = null, isRedAssigned = false, isJustConnected = false;
 
 const initialGameState = () => ({
+    version: 0, 
     turn: 'blue', selectedNode: null, lastMove: null, gameOver: false, winner: null,
     mode: gameMode,
     pieces: {
@@ -349,6 +350,10 @@ function handleInteraction(id) {
             gameState.lastMove = {from: gameState.selectedNode, to: id};
             gameState.pieces[id] = movingPiece; delete gameState.pieces[gameState.selectedNode];
             gameState.turn = gameState.turn === 'blue' ? 'red' : 'blue'; gameState.selectedNode = null; 
+            
+            gameState.version++; // Sync Increment
+            localVersion = gameState.version;
+
             updateStatus();
             broadcastState(); 
         } else { gameState.selectedNode = null; }
@@ -420,6 +425,10 @@ function setupConnection(){
     });
     conn.on('data',d=>{
         if(!d || typeof d !== 'object') return;
+        
+        // Anti-Ghosting / Heartbeat Filter
+        if(d.type === 'HEARTBEAT') return;
+
         if(d.type) {
             switch(d.type) {
                 case 'FORCE_SYNC_REQUEST': syncMyInfo(); break;
@@ -468,26 +477,41 @@ function setupConnection(){
             }
             return;
         }
-        gameState=d; 
-        if(d.mode) { gameMode = d.mode; updateModeUI(); }
-        spectators.forEach(s => { if(s && s.open) s.send(gameState); });
-        
-        // --- ONLY TRIGGER SCORE ON LOCAL WIN/LOSS ---
-        if(gameState.gameOver && !hasProcessedResult) {
-            if(myRole !== 'spectator' && !isJustConnected) {
-                updateScore(myRole === gameState.winner);
+
+        // State Version Syncing
+        if(d.version !== undefined) {
+            if(d.version < localVersion && !gameState.gameOver) return; // Old packet
+            localVersion = d.version;
+            gameState=d; 
+            if(d.mode) { gameMode = d.mode; updateModeUI(); }
+            spectators.forEach(s => { if(s && s.open) s.send(gameState); });
+            
+            if(gameState.gameOver && !hasProcessedResult) {
+                if(myRole !== 'spectator' && !isJustConnected) {
+                    updateScore(myRole === gameState.winner);
+                }
+                showWinPopup(gameState.winner);
             }
-            showWinPopup(gameState.winner);
+            drawBoard(); updateStatus();
         }
-        drawBoard(); updateStatus();
     });
 }
+
+// TURN Keep-Alive (Heartbeat) to prevent relay timeouts
+setInterval(() => {
+    if (conn && conn.open) conn.send({ type: 'HEARTBEAT' });
+}, 4000);
 
 peer.on('open',id=>{
     const p=tg.initDataUnsafe.start_param;
     if(p){
-        if(p.startsWith('spec_')){ conn=peer.connect(p.replace('spec_',''),{metadata:{type:'spectator'},reliable:true}); myRole='spectator'; }
-        else{ conn=peer.connect(p,{reliable:true}); myRole='red'; }
+        if(p.startsWith('spec_')){ 
+            conn=peer.connect(p.replace('spec_',''),{metadata:{type:'spectator'},reliable:true}); 
+            myRole='spectator'; 
+        } else { 
+            conn=peer.connect(p,{reliable:true}); 
+            myRole='red'; 
+        }
         setupConnection();
     }else{ myRole='blue'; updateStatus(); }
     loadScore();
@@ -520,4 +544,3 @@ drawBoard();
 </script>
 </body>
 </html>
-
