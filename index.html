@@ -160,8 +160,9 @@ function updateScore(isWin, isDraw = false) {
     const display = document.getElementById('iq-change-display');
     const isSolo = (myRole === 'blue' && !isRedAssigned);
     
+    // Updated Logic: No one loses points in a draw
     if (gameMode === 'friendly' || isSolo || isDraw) {
-        display.innerText = "No IQ Change";
+        display.innerText = "No IQ Change (Draw)";
         display.style.color = "#888";
         hasProcessedResult = true;
         return;
@@ -210,7 +211,7 @@ function handleDrawRequest() {
     if (gameState.gameOver || (myRole === 'blue' && !isRedAssigned)) return;
     if (conn && conn.open) {
         conn.send({ type: 'DRAW_OFFER' });
-        tg.showAlert("Draw offer sent.");
+        tg.showAlert("Draw offer sent. No points will be lost if accepted.");
     }
 }
 
