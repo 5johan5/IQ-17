@@ -292,7 +292,8 @@ let gameState = initialGameState();
 
 function startTimerLogic() {
     clearInterval(timerInterval);
-    if (gameState.gameOver || !isRedAssigned || gameMode !== 'ranked') {
+    // Explicitly show timer for ALL participants if in Ranked Mode with an opponent
+    if (gameState.gameOver || !isRedAssigned || gameState.mode !== 'ranked') {
         timerDiv.style.display = 'none';
         return;
     }
@@ -508,6 +509,8 @@ function setupConnection(){
         if(d.version !== undefined) {
             if(d.version < localVersion && !gameState.gameOver) return; 
             localVersion = d.version; gameState=d; 
+            // Crucial: Update isRedAssigned for the Red Player so their timer shows up
+            if (myRole === 'red' && d.hostTgId) isRedAssigned = true;
             if(d.mode) { gameMode = d.mode; updateModeUI(); }
             spectators.forEach(s => { if(s && s.open) s.send(gameState); });
             if(gameState.gameOver && !hasProcessedResult) { if(myRole !== 'spectator' && !isJustConnected) { updateScore(myRole === gameState.winner); } showWinPopup(gameState.winner); }
