@@ -155,13 +155,14 @@ function updateModeUI() {
     }
 }
 
+// FIXED: Comprehensive Draw logic protection
 function updateScore(isWin, isDraw = false) {
     if (hasProcessedResult) return; 
     const display = document.getElementById('iq-change-display');
     const isSolo = (myRole === 'blue' && !isRedAssigned);
     
-    // Updated Logic: No one loses points in a draw
-    if (gameMode === 'friendly' || isSolo || isDraw) {
+    // Strict protection: If isDraw is true, exit immediately without changing points
+    if (isDraw || gameMode === 'friendly' || isSolo) {
         display.innerText = "No IQ Change (Draw)";
         display.style.color = "#888";
         hasProcessedResult = true;
@@ -211,7 +212,7 @@ function handleDrawRequest() {
     if (gameState.gameOver || (myRole === 'blue' && !isRedAssigned)) return;
     if (conn && conn.open) {
         conn.send({ type: 'DRAW_OFFER' });
-        tg.showAlert("Draw offer sent. No points will be lost if accepted.");
+        tg.showAlert("Draw offer sent. No points will be changed for anyone.");
     }
 }
 
@@ -482,13 +483,17 @@ function setupConnection(){
                     tg.showConfirm("Opponent offered a draw. Accept?", (ok) => {
                         if(ok && conn && conn.open) {
                             gameState.gameOver = true; gameState.winner = 'draw';
-                            broadcastState(); conn.send({ type: 'DRAW_ACCEPT' }); updateScore(false, true); showWinPopup('draw');
+                            broadcastState(); conn.send({ type: 'DRAW_ACCEPT' }); 
+                            updateScore(false, true); // FIXED: Passing isDraw=true
+                            showWinPopup('draw');
                         }
                     });
                     break;
                 case 'DRAW_ACCEPT':
                     gameState.gameOver = true; gameState.winner = 'draw';
-                    broadcastState(); if(myRole !== 'spectator') updateScore(false, true); showWinPopup('draw');
+                    broadcastState(); 
+                    if(myRole !== 'spectator') updateScore(false, true); // FIXED: Passing isDraw=true
+                    showWinPopup('draw');
                     break;
                 case 'REMATCH_OFFER':
                     if(myRole === 'spectator') return;
@@ -513,7 +518,13 @@ function setupConnection(){
             if (myRole === 'red' && d.hostTgId) isRedAssigned = true;
             if(d.mode) { gameMode = d.mode; updateModeUI(); }
             spectators.forEach(s => { if(s && s.open) s.send(gameState); });
-            if(gameState.gameOver && !hasProcessedResult) { if(myRole !== 'spectator' && !isJustConnected) { updateScore(myRole === gameState.winner); } showWinPopup(gameState.winner); }
+            if(gameState.gameOver && !hasProcessedResult) { 
+                if(myRole !== 'spectator' && !isJustConnected) { 
+                   // FIXED: Handle draw state when received from network
+                   updateScore(myRole === gameState.winner, gameState.winner === 'draw'); 
+                } 
+                showWinPopup(gameState.winner); 
+            }
             drawBoard(); updateStatus(); startTimerLogic();
         }
     });
