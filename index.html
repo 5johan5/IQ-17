@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -91,7 +90,7 @@ let gameMode = 'ranked';
 let hasProcessedResult = false; 
 let localVersion = 0; 
 let timerInterval = null;
-let myMoveCount = 0; // TRACKS LOCAL PLAYER MOVES
+let myMoveCount = 0; 
 
 function getRank(iq) {
     if (iq <= 20) return "Initiate III";
@@ -298,11 +297,13 @@ let gameState = initialGameState();
 
 function startTimerLogic() {
     clearInterval(timerInterval);
-    if (gameState.gameOver || (gameState.mode === 'ranked' && !isRedAssigned && myRole !== 'spectator')) {
+    if (gameState.gameOver || (gameState.mode === 'ranked' && !isRedAssigned)) {
         timerDiv.style.display = 'none';
         return;
     }
     if (gameState.mode === 'ranked') timerDiv.style.display = 'block';
+    else { timerDiv.style.display = 'none'; return; }
+
     timerInterval = setInterval(() => {
         const elapsed = Math.floor((Date.now() - gameState.turnStartTime) / 1000);
         const remaining = Math.max(0, 180 - elapsed);
@@ -310,16 +311,14 @@ function startTimerLogic() {
         const s = remaining % 60;
         timerDiv.innerText = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
         
-        if (remaining <= 0 && !gameState.gameOver) {
+        if (remaining <= 0 && !gameState.gameOver && myRole === gameState.turn) {
             clearInterval(timerInterval);
-            if (myRole === gameState.turn) {
-                gameState.gameOver = true;
-                gameState.winner = (myRole === 'blue' ? 'red' : 'blue');
-                broadcastState();
-                updateScore(false);
-                showWinPopup(gameState.winner);
-                winMsg.innerText = "TIME EXPIRED - YOU LOST";
-            }
+            gameState.gameOver = true;
+            gameState.winner = (myRole === 'blue' ? 'red' : 'blue');
+            broadcastState();
+            updateScore(false);
+            showWinPopup(gameState.winner);
+            winMsg.innerText = "TIME EXPIRED - YOU LOST";
         }
     }, 1000);
 }
@@ -387,7 +386,7 @@ function handleInteraction(id) {
         gameState.selectedNode = id;
     } else if (gameState.selectedNode !== null) {
         if (getValidMoves(gameState.selectedNode).includes(id)) {
-            myMoveCount++; // INCREMENT ON MOVE
+            myMoveCount++; 
             const movingPiece = gameState.pieces[gameState.selectedNode];
             if ((target && target.type === 'king') || (movingPiece.type === 'king' && ((movingPiece.team === 'blue' && id === 43) || (movingPiece.team === 'red' && id === 0)))) {
                 gameState.gameOver = true;
@@ -443,11 +442,8 @@ function broadcastState(){
 function updateStatus(){
     if(gameState.gameOver)return;
     if(isJustConnected){ statusDiv.innerText = "CONNECTED"; statusDiv.style.color = "#00AD11"; return; }
-    
-    // HIDE ABANDON IF MOVED
     const abandonBtn = document.getElementById('abandon-btn');
     if (abandonBtn) abandonBtn.style.display = (myMoveCount > 0) ? 'none' : 'inline-block';
-
     let prefix = (myRole==='spectator'?"LIVE: ":"");
     if (myRole === 'blue' && !isRedAssigned) prefix = "SOLO: ";
     statusDiv.innerText=prefix+gameState.turn.toUpperCase()+" TURN";
@@ -570,19 +566,20 @@ peer.on('open',id=>{
 
 peer.on('connection',c=>{
     if (c.peer === peer.id) { c.close(); return; }
-    if(c.metadata&&c.metadata.type==='spectator'){ 
-        spectators.push(c); 
+    if(c.metadata&&c.metadata.type==='spectator'){
+        spectators.push(c);
         c.on('open',()=>{
             c.send(gameState);
             c.send({ type: 'INFO_SYNC', name: myTelegramName, iq: userScore, role: myRole, tgId: myTelegramID });
             if (conn && conn.open) conn.send({type: 'FORCE_SYNC_REQUEST'});
-        }); 
+        });
     }
-    else{ 
-        if(myRole === 'blue' && isRedAssigned) { c.on('open', () => c.send({type: "ROOM_FULL"})); return; } 
-        conn=c; setupConnection(); 
+    else{
+        if(myRole === 'blue' && isRedAssigned) { c.on('open', () => c.send({type: "ROOM_FULL"})); return; }
+        conn=c; setupConnection();
     }
 });
+
 canvas.addEventListener('touchstart',e=>{
     if(myRole==='spectator') return;
     e.preventDefault(); toggleUI(true);
