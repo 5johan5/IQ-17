@@ -275,14 +275,24 @@ const nodes = {
 };
 const roads = [[0,2],[0,3],[1,2],[2,3],[3,4],[1,5],[2,6],[3,7],[4,8],[5,6],[6,7],[7,8],[5,9],[6,10],[7,11],[8,12],[9,10],[10,11],[11,12],[2,5],[3,6],[6,9],[4,7],[7,10],[8,11],[9,13],[9,14],[10,14],[10,15],[11,16],[11,17],[12,18],[12,17],[13,14],[14,15],[16,17],[17,18],[13,19],[14,20],[15,21],[16,22],[17,23],[18,24],[19,20],[20,21],[22,23],[23,24],[19,30],[20,29],[21,28],[22,27],[23,26],[24,25],[30,29],[29,28],[27,26],[26,25],[15,22],[21,27],[31,30],[31,29],[32,29],[32,28],[33,27],[33,26],[34,26],[34,25],[31,32],[32,33],[33,34],[31,38],[32,37],[33,36],[34,35],[38,37],[37,36],[36,35],[38,39],[37,40],[36,41],[35,42],[39,40],[40,41],[41,42],[40,43],[41,43],[38,32],[39,37],[37,33],[40,36],[36,34],[41,35],[18,23],[23,27],[16,23],[23,25],[13,20],[20,28],[15,20],[20,30],[38,28],[8,16]];
 
-// UPDATED CREDENTIALS HERE
-let peer = new Peer({ config: {
-    'iceServers': [
-        { 'urls': 'stun:stun.l.google.com:19302' }, 
-        { 'urls': 'turn:global.relay.metered.ca:443', 'username': '2ef2d333c57c523cf60e52d3', 'credential': 'Hwn3lqJQG1j81Fp7' }
-    ], 
-    'iceTransportPolicy': 'relay' 
-} });
+// REPLACED WITH STABLE OPEN RELAY PROJECT CREDENTIALS
+let peer = new Peer({ 
+    config: {
+        'iceServers': [
+            { 'urls': 'stun:stun.l.google.com:19302' }, 
+            { 
+                'urls': [
+                    'turn:staticauth.openrelay.metered.ca:80',
+                    'turn:staticauth.openrelay.metered.ca:443',
+                    'turns:staticauth.openrelay.metered.ca:443?transport=tcp'
+                ], 
+                'username': 'openrelayproject', 
+                'credential': 'openrelayprojectsecret' 
+            }
+        ], 
+        'iceTransportPolicy': 'relay' 
+    } 
+});
 
 let conn = null, spectators = [], myRole = null, isRedAssigned = false, isJustConnected = false, hostTgId = null;
 
@@ -303,7 +313,7 @@ const initialGameState = () => ({
 });
 let gameState = initialGameState();
 
-// IMPROVED TIMER LOGIC WITH GRACE PERIOD
+// TIMER LOGIC WITH 2S GRACE PERIOD TO FIX FALSE "TIME EXPIRED"
 function startTimerLogic() {
     clearInterval(timerInterval);
     if (gameState.gameOver || (gameState.mode === 'ranked' && !isRedAssigned)) {
@@ -323,7 +333,7 @@ function startTimerLogic() {
         const s = remaining % 60;
         timerDiv.innerText = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
         
-        // Grace period (2s) and Turn-check to prevent false timeouts from network lag
+        // Only active player can trigger their own loss after a 2s grace period for latency
         if (elapsed >= (limit + 2) && !gameState.gameOver && myRole === gameState.turn) {
             clearInterval(timerInterval);
             gameState.gameOver = true;
