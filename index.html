@@ -251,7 +251,7 @@ function getValidMoves(startNode) {
         let neighbors = roads.filter(r => r.includes(current.id)).map(r => r[0] === current.id ? r[1] : r[0]);
 
         neighbors.forEach(neighbor => {
-            // ANGLE CHECK: Restrict hard turns
+            // ANGLE CHECK: Restrict hard turns (Zigzags < 140 degrees)
             if (isSpecialPiece && current.lastNode !== null) {
                 const p1 = nodes[current.lastNode];
                 const p2 = nodes[current.id];
@@ -266,8 +266,8 @@ function getValidMoves(startNode) {
                 // Turn sharpness in degrees. 0 = perfectly straight.
                 const turnInDegrees = diff * (180 / Math.PI);
                 
-                // Allow only turns up to 25.61 degrees off-center
-                if (turnInDegrees > 25.61) return; 
+                // Allow only turns up to 40 degrees off-center (interior angle >= 140)
+                if (turnInDegrees > 40) return; 
             }
 
             if (!visited.has(neighbor)) {
@@ -300,3 +300,4 @@ drawBoard();
 </script>
 </body>
 </html>
+
