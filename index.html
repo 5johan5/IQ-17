@@ -19,7 +19,10 @@
         #pull-tab { position: absolute; top: -30px; left: 50%; transform: translateX(-50%); background: #fff; border: 1px solid #ccc; border-bottom: none; padding: 5px 20px; border-radius: 10px 10px 0 0; cursor: pointer; font-size: 12px; font-weight: bold; color: #0088cc; }
         #status-container { position: absolute; top: -75px; left: 0; width: 100%; pointer-events: none; }
         #status { font-size: 22px; font-weight: 900; text-transform: uppercase; text-shadow: 0px 0px 5px rgba(255,255,255,0.8); }
-        #timer { display: none; }
+        
+        /* Re-enabled Timer CSS */
+        #timer { font-size: 16px; font-weight: bold; color: #444; background: rgba(255,255,255,0.9); padding: 2px 10px; border-radius: 20px; display: inline-block; margin-bottom: 5px; border: 1px solid #ccc; }
+        
         .btn { padding: 10px 18px; background: #0088cc; color: white; border: none; border-radius: 8px; cursor: pointer; margin: 3px; font-weight: bold; font-size: 14px; }
         .btn:disabled { background: #ccc !important; cursor: not-allowed; opacity: 0.6; }
         #game-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 100; flex-direction: column; justify-content: center; align-items: center; color: white; }
@@ -63,7 +66,7 @@
 
     <div id="ui-container">
         <div id="status-container">
-            <div id="timer">00:00</div>
+            <div id="timer">03:00</div>
             <div id="status">Connecting...</div>
         </div>
         <div id="pull-tab" onclick="toggleUI()">▲ MENU</div>
@@ -90,6 +93,7 @@ let gameMode = 'ranked';
 let hasProcessedResult = false; 
 let localVersion = 0; 
 let myMoveCount = 0;
+let timerInterval = null;
 
 function getRank(iq) {
     if (iq <= 20) return "Initiate III";
@@ -237,6 +241,7 @@ function triggerRestart() {
     drawBoard();
     updateStatus();
     updateModeUI();
+    startTimer();
 }
 
 function syncMyInfo() {
@@ -281,6 +286,7 @@ const initialGameState = () => ({
     turn: 'blue', selectedNode: null, lastMove: null, gameOver: false, winner: null,
     mode: gameMode,
     hostTgId: myTelegramID,
+    timer: 180, // 3 minutes in seconds
     pieces: {
         0:{team:'blue',type:'king'}, 3:{team:'blue',type:'triangle'}, 4:{team:'blue',type:'triangle'},
         5:{team:'blue',type:'square'}, 6:{team:'blue',type:'square'}, 7:{team:'blue',type:'square'}, 8:{team:'blue',type:'square'},
@@ -291,6 +297,30 @@ const initialGameState = () => ({
     }
 });
 let gameState = initialGameState();
+
+// Timer Logic
+function startTimer() {
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+        if (myRole === 'blue' && isRedAssigned && !gameState.gameOver) {
+            gameState.timer--;
+            if (gameState.timer <= 0) {
+                gameState.gameOver = true;
+                gameState.winner = gameState.turn === 'blue' ? 'red' : 'blue';
+                broadcastState();
+                handleGameOver(gameState.winner);
+            }
+            broadcastState();
+        }
+        updateTimerUI();
+    }, 1000);
+}
+
+function updateTimerUI() {
+    const mins = Math.floor(Math.max(0, gameState.timer) / 60);
+    const secs = Math.max(0, gameState.timer) % 60;
+    timerDiv.innerText = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+}
 
 function getValidMoves(startNode) {
     if (startNode === null) return [];
@@ -360,18 +390,25 @@ function handleInteraction(id) {
             if ((target && target.type === 'king') || (movingPiece.type === 'king' && ((movingPiece.team === 'blue' && id === 43) || (movingPiece.team === 'red' && id === 0)))) {
                 gameState.gameOver = true;
                 gameState.winner = gameState.turn; 
-                if (myRole !== 'spectator' && !isHostSolo) { updateScore(myRole === gameState.winner); }
-                showWinPopup(gameState.winner);
+                handleGameOver(gameState.winner);
             }
             gameState.lastMove = {from: gameState.selectedNode, to: id};
             gameState.pieces[id] = movingPiece; delete gameState.pieces[gameState.selectedNode];
             gameState.turn = gameState.turn === 'blue' ? 'red' : 'blue'; 
             gameState.selectedNode = null; 
+            gameState.timer = 180; // RESET TIMER ON MOVE
             gameState.version++; localVersion = gameState.version;
             updateStatus(); broadcastState();
         } else { gameState.selectedNode = null; }
     }
     drawBoard();
+}
+
+function handleGameOver(winner) {
+    if (myRole !== 'spectator' && (myRole === 'blue' && !isRedAssigned) === false) {
+        updateScore(myRole === winner, winner === 'draw');
+    }
+    showWinPopup(winner);
 }
 
 function drawBoard(){
@@ -408,7 +445,7 @@ function broadcastState(){
 }
 
 function updateStatus(){
-    if(gameState.gameOver)return;
+    if(gameState.gameOver) { if(timerInterval) clearInterval(timerInterval); return; }
     if(isJustConnected){ statusDiv.innerText = "CONNECTED"; statusDiv.style.color = "#00AD11"; return; }
     
     const abandonBtn = document.getElementById('abandon-btn');
@@ -440,7 +477,7 @@ function setupConnection(){
     conn.on('close', () => {
         if(!gameState.gameOver && isRedAssigned) {
             gameState.gameOver = true; gameState.winner = myRole; broadcastState();
-            updateScore(true); showWinPopup(gameState.winner);
+            handleGameOver(gameState.winner);
             winMsg.innerText = "OPPONENT LEFT - YOU WIN!";
         }
     });
@@ -467,8 +504,7 @@ function setupConnection(){
                     break;
                 case 'SURRENDER':
                     gameState.gameOver = true; gameState.winner = d.winner;
-                    broadcastState(); if(myRole !== 'spectator') updateScore(myRole === d.winner); 
-                    showWinPopup(gameState.winner); winMsg.innerText = "OPPONENT SURRENDERED!";
+                    broadcastState(); handleGameOver(gameState.winner); winMsg.innerText = "OPPONENT SURRENDERED!";
                     break;
                 case 'DRAW_OFFER':
                     if(myRole === 'spectator') return;
@@ -476,15 +512,13 @@ function setupConnection(){
                         if(ok && conn && conn.open) {
                             gameState.gameOver = true; gameState.winner = 'draw';
                             broadcastState(); conn.send({ type: 'DRAW_ACCEPT' }); 
-                            updateScore(false, true);
-                            showWinPopup('draw');
+                            handleGameOver('draw');
                         }
                     });
                     break;
                 case 'DRAW_ACCEPT':
                     gameState.gameOver = true; gameState.winner = 'draw';
-                    broadcastState(); if(myRole !== 'spectator') updateScore(false, true);
-                    showWinPopup('draw');
+                    broadcastState(); handleGameOver('draw');
                     break;
                 case 'REMATCH_OFFER':
                     if(myRole === 'spectator') return;
@@ -497,7 +531,12 @@ function setupConnection(){
                 case 'CHECK_AVAILABILITY':
                     if (d.tgId === myTelegramID) { conn.send({type: "SELF_CONNECTION"}); conn.close(); return; }
                     if(isRedAssigned) { conn.send({type: "ROOM_FULL"}); }
-                    else { isRedAssigned=true; invitePlayerBtn.style.display='none'; isJustConnected=true; updateStatus(); updateModeUI(); setTimeout(()=> {isJustConnected=false; updateStatus();}, 2000); broadcastState(); }
+                    else { 
+                        isRedAssigned=true; invitePlayerBtn.style.display='none'; isJustConnected=true; updateStatus(); updateModeUI(); 
+                        setTimeout(()=> {isJustConnected=false; updateStatus();}, 2000); 
+                        broadcastState();
+                        startTimer();
+                    }
                     break;
                 case 'SELF_CONNECTION': tg.showAlert("You cannot join your own game session."); break;
             }
@@ -510,10 +549,9 @@ function setupConnection(){
             if(d.mode) { gameMode = d.mode; updateModeUI(); }
             spectators.forEach(s => { if(s && s.open) s.send(gameState); });
             if(gameState.gameOver && !hasProcessedResult) { 
-                if(myRole !== 'spectator' && !isJustConnected) { updateScore(myRole === gameState.winner, gameState.winner === 'draw'); } 
-                showWinPopup(gameState.winner);
+                handleGameOver(gameState.winner);
             }
-            drawBoard(); updateStatus();
+            drawBoard(); updateStatus(); updateTimerUI();
         }
     });
 }
@@ -532,6 +570,7 @@ peer.on('open',id=>{
     }
     loadScore();
     updateModeUI();
+    startTimer();
 });
 
 peer.on('connection',c=>{
